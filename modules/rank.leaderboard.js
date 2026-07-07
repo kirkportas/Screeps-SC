@@ -3,7 +3,7 @@
  */
 module.exports.init = function () {
   module.dispatchEvent(
-    { event: "xhttp", url: "http://www.leagueofautomatednations.com/alliances.js" },
+    { event: "xhttp", url: "https://www.leagueofautomatednations.com/alliances.js" },
     function (response) {
       module.alliances = JSON.parse(response.data);
 
@@ -54,11 +54,11 @@ module.exports.update = function () {
           if (alliance) {
             var logo = module.alliances[alliance].logo;
             if (logo) {
-              var logoURL = "http://www.leagueofautomatednations.com/obj/" + module.alliances[alliance].logo;
-              html = `<td><a href='http://www.leagueofautomatednations.com/a/${alliance}'>
+              var logoURL = "https://www.leagueofautomatednations.com/obj/" + module.alliances[alliance].logo;
+              html = `<td><a href='https://www.leagueofautomatednations.com/a/${alliance}'>
                                 <img src='${logoURL}' height='16' width='16'>${alliance}</a></td>`;
             } else {
-              html = `<td><a href='http://www.leagueofautomatednations.com/a/${alliance}'>${alliance}</a></td>`;
+              html = `<td><a href='https://www.leagueofautomatednations.com/a/${alliance}'>${alliance}</a></td>`;
             }
           } else {
             html = "<td></td>";

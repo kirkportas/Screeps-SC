@@ -1,201 +1,209 @@
-var activeTabPorts = {}
-var injectQueue = []
+// Cross-browser alias: Firefox (and Chrome 133+) expose the promise-based
+// `browser` namespace; Chrome MV3 `chrome.*` also returns promises when no
+// callback is passed, so promise-style calls work in both.
+const api = globalThis.browser ?? chrome;
 
-chrome.runtime.getPackageDirectoryEntry(function (dirEntry) {
-    dirEntry.getFile("settings.json", undefined, function (fileEntry) {
-    fileEntry.file(function (file) {
-            var reader = new FileReader()
-            reader.addEventListener("load", function (event) {
-                var settings = JSON.parse(reader.result);
+const activeTabPorts = {};
+let injectQueue = [];
 
-                if (settings.modules.length){
-                    var onUpdateArr = [];
-                    var onCompletedArr = [];
+// Runs on every service worker / event page startup, so the routing arrays in
+// storage.local are refreshed even after Chrome suspends the worker.
+async function loadSettings() {
+    const response = await fetch(api.runtime.getURL("settings.json"));
+    const settings = await response.json();
 
-                    for (var i = 0, len = settings.modules.length; i < len; i++) {
-                        var module = settings.modules[i];
+    if (!settings.modules || !settings.modules.length) {
+        console.error("modules is missing in settings.json");
+        return;
+    }
 
-                        if (!module.path){
-                            console.error("module at index["+i+"] is missing path.");
-                            break;
-                        }
+    const onUpdateArr = [];
+    const onCompletedArr = [];
 
-                        if (!module.runAt || !Object.keys(module.runAt).length){
-                            console.error("module at index["+i+"] is missing runAt.");
-                            break;
-                        }
+    for (let i = 0, len = settings.modules.length; i < len; i++) {
+        const module = settings.modules[i];
 
-                        if (module.runAt.onUpdate){
-                            onUpdateArr.push({path: module.path, url: module.runAt.onUpdate});
-                        }
+        if (!module.path) {
+            console.error("module at index[" + i + "] is missing path.");
+            break;
+        }
 
-                        if (module.runAt.onCompleted){
-                            onCompletedArr.push({path: module.path, url: module.runAt.onCompleted});
-                        }
-                    }
+        if (!module.runAt || !Object.keys(module.runAt).length) {
+            console.error("module at index[" + i + "] is missing runAt.");
+            break;
+        }
 
-                    chrome.storage.local.set({onUpdateArr: onUpdateArr, onCompletedArr: onCompletedArr}, function() {
-                      if(chrome.runtime.lastError) {
-                        console.error(
-                          "Error setting " + key + " to " + JSON.stringify(data) +
-                          ": " + chrome.runtime.lastError.message
-                        );
-                      }
-                    });
+        if (module.runAt.onUpdate) {
+            onUpdateArr.push({ path: module.path, url: module.runAt.onUpdate });
+        }
 
-                }else{
-                    console.error("modules is missing in settings.json");
-                }
-            });
-            reader.readAsText(file);
-        });
-    }, function (e) {
-        console.error(e);
+        if (module.runAt.onCompleted) {
+            onCompletedArr.push({ path: module.path, url: module.runAt.onCompleted });
+        }
+    }
+
+    await api.storage.local.set({ onUpdateArr: onUpdateArr, onCompletedArr: onCompletedArr });
+}
+
+loadSettings().catch(function (e) {
+    console.error("Failed to load settings.json: " + e);
+});
+
+api.action.onClicked.addListener(function () {
+    api.runtime.openOptionsPage();
+});
+
+api.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
+    if (changeInfo.status !== "complete") {
+        return;
+    }
+
+    if (!tab.url || !tab.url.startsWith("https://screeps.com/a/#!/")) {
+        return;
+    }
+
+    api.storage.local.get("onUpdateArr").then(function (data) {
+        if (data.onUpdateArr) {
+            runMatchingModules(tabId, data.onUpdateArr, tab.url);
+        } else {
+            console.error("Failed to read array from onUpdateArr in local storage.");
+        }
     });
 });
 
-chrome.browserAction.onClicked.addListener(function(tab) {
-    //chrome.tabs.create({"url": "https://screeps.com/a/#!/map"});
-    chrome.runtime.openOptionsPage();
-});
-
-chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
-    if (changeInfo.status == "complete"){
-        if (tab.url.startsWith("https://screeps.com/a/#!/")){
-            /*
-            var script = `data = {auth: JSON.parse(localStorage.getItem('auth')),
-                          userid: JSON.parse(localStorage.getItem('users.code.activeWorld'))[0]._id}; data;`
-
-            chrome.tabs.executeScript(tabId, {code: script}, function(dataArr){
-                console.log(dataArr);
-            });
-            */
-
-            if (!activeTabPorts[tabId]){
-                activeTabPorts[tabId] = {}
-            }
-
-
-            chrome.storage.local.get("onUpdateArr", function(data) {
-                if (data.onUpdateArr){
-                    data.onUpdateArr.forEach(function(info){
-                        if (tab.url.startsWith(info.url)){
-                            getStorageSync(info.path, function(option){
-                                if (option && option.enabled !== false){
-                                    executeModule(tabId, info, option.config);
-                                }else{
-                                    executeModule(tabId, info);
-                                }
-                            });
-                        }
-                    });
-                }else{
-                    console.error("Failed to read array from onUpdateArr in local storage.");
-                }
-            });
-        }
+api.webRequest.onCompleted.addListener(function (details) {
+    if (details.tabId < 0) {
+        return; // request not associated with a tab (e.g. from the extension itself)
     }
-});
 
-chrome.webRequest.onCompleted.addListener(function(details) {
-    // console.log('onCompleted', details)
-    chrome.storage.local.get("onCompletedArr", function(data) {
-        if (data.onCompletedArr){
-            data.onCompletedArr.forEach(function(info){
-                if (details.url.startsWith(info.url)){
-                    getStorageSync(info.path, function(option){
-                        if (option && option.enabled !== false){
-                            executeModule(details.tabId, info, option.config);
-                        }else{
-                            executeModule(details.tabId, info);
-                        }
-                    });
-                }
-            });
-        }else{
+    api.storage.local.get("onCompletedArr").then(function (data) {
+        if (data.onCompletedArr) {
+            runMatchingModules(details.tabId, data.onCompletedArr, details.url);
+        } else {
             console.error("Failed to read array from onCompletedArr in local storage.");
         }
     });
-}, {urls: ["*://screeps.com/*"]});
+}, { urls: ["*://screeps.com/*"] });
 
-chrome.runtime.onMessage.addListener(function(request, sender, callback) {
-    if (request.action == "xhttp") {
-        var xhttp = new XMLHttpRequest();
-        var method = request.method ? request.method.toUpperCase() : 'GET';
+api.runtime.onMessage.addListener(function (request, sender, sendResponse) {
+    if (request.action === "xhttp") {
+        const method = request.method ? request.method.toUpperCase() : "GET";
+        const options = { method: method };
 
-        xhttp.onload = function() {
-            callback(xhttp.responseText);
-        };
-        xhttp.onerror = function() {
-            console.error("Error in xhttp: " + xhttp.responseText);
-            callback();
-        };
-        xhttp.open(method, request.url, true);
-        if (method == 'POST') {
-            xhttp.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        if (method === "POST") {
+            options.headers = { "Content-Type": "application/x-www-form-urlencoded" };
+            options.body = request.data;
         }
-        xhttp.send(request.data);
-        return true; // prevents the callback from being called too early on return
-    } else if (request.action == "injected"){
+
+        fetch(request.url, options)
+            .then(function (response) {
+                return response.text();
+            })
+            .then(function (responseText) {
+                sendResponse(responseText);
+            })
+            .catch(function (e) {
+                console.error("Error in xhttp: " + e);
+                sendResponse();
+            });
+
+        return true; // keep the message channel open for the async response
+    } else if (request.action === "injected") {
         injectQueue = injectQueue.filter(item => item !== request.data);
     }
 });
 
-function getStorageSync(path, cb){
-    var name = path.replace("modules/", "").replace(".js", "");
+function runMatchingModules(tabId, moduleInfos, url) {
+    moduleInfos.forEach(function (info) {
+        if (url.startsWith(info.url)) {
+            getStorageSync(info.path).then(function (option) {
+                if (option && option.enabled === false) {
+                    return; // module disabled on the options page
+                }
 
-    chrome.storage.sync.get(name, function(data) {
-        if (data && data[name]){
-            cb(data[name]);
-        }else{
-            cb();
+                executeModule(tabId, info, option ? option.config : undefined);
+            });
         }
     });
 }
 
-function executeModule(tabId, info, config, tries = 15){
-    if (!activeTabPorts[tabId] || !activeTabPorts[tabId][info.path]){
-        activeTabPorts[tabId][info.path] = {}
+function getStorageSync(path) {
+    const name = path.replace("modules/", "").replace(".js", "");
+
+    return api.storage.sync.get(name).then(function (data) {
+        return data ? data[name] : undefined;
+    });
+}
+
+async function executeModule(tabId, info, config, tries = 15) {
+    if (!activeTabPorts[tabId]) {
+        activeTabPorts[tabId] = {};
+    }
+    if (!activeTabPorts[tabId][info.path]) {
+        activeTabPorts[tabId][info.path] = {};
     }
 
-    if (activeTabPorts[tabId][info.path].port){
-        activeTabPorts[tabId][info.path].port.postMessage({event: 'update', module:info.path});
-    }else{
+    if (activeTabPorts[tabId][info.path].port) {
+        activeTabPorts[tabId][info.path].port.postMessage({ event: "update", module: info.path });
+        return;
+    }
 
-        if (injectQueue.length === 0){
-            injectQueue.push(info.path);
+    if (injectQueue.length !== 0) {
+        if (tries <= 0) {
+            console.error("Failed to inject: " + info.path);
+        } else {
+            setTimeout(function () {
+                executeModule(tabId, info, config, tries - 1);
+            }, 500);
+        }
+        return;
+    }
 
-            chrome.tabs.executeScript(tabId, {code: `var module = {name: '${info.path}', config: ${JSON.stringify(config)}}`}, function(){
-                chrome.tabs.executeScript(tabId, {file: "module.js"}, function(){
-                    chrome.tabs.executeScript(tabId, {file: "content.js"}, function(){
-                        chrome.tabs.executeScript(tabId, {file: info.path}, function(){
-                            var port = chrome.tabs.connect(tabId, {name: info.path});
+    injectQueue.push(info.path);
 
-                            port.onMessage.addListener(function(msg) {
-                              console.log('received message from tab ' + tabId + ':');
-                              console.log(msg);
-                            });
+    try {
+        // MV3 forbids injecting code strings, so the module name/config are
+        // seeded via an injected function; module.js and the module file then
+        // read the resulting `module` global from the shared isolated world.
+        await api.scripting.executeScript({
+            target: { tabId: tabId },
+            func: function (name, config) {
+                window.module = { name: name, config: config };
+            },
+            args: [info.path, config === undefined ? null : config]
+        });
 
-                            port.onDisconnect.addListener(function(event) {
-                              console.log("port disconnected");
-                              delete activeTabPorts[tabId][info.path];
-                            });
-
-                            port.postMessage({event: 'inject', module:info.path});
-
-                            activeTabPorts[tabId][info.path].port = port;
-                        });
-                    });
-                });
+        // Firefox rejects when an injected file's completion value is not
+        // structured-clonable (e.g. a file ending in a function assignment),
+        // even though the script executed fine; Chrome just nulls the result.
+        try {
+            await api.scripting.executeScript({
+                target: { tabId: tabId },
+                files: ["module.js", "content.js", info.path]
             });
-        }else{
-            if (tries <= 0){
-                console.error("Failed to inject: " + info.path);
-            }else{
-                setTimeout(function(){
-                    executeModule(tabId, info, config, tries - 1);
-                }, 500);
+        } catch (e) {
+            if (!String(e).includes("non-structured-clonable")) {
+                throw e;
             }
         }
+
+        const port = api.tabs.connect(tabId, { name: info.path });
+
+        port.onMessage.addListener(function (msg) {
+            console.log("received message from tab " + tabId + ":");
+            console.log(msg);
+        });
+
+        port.onDisconnect.addListener(function () {
+            console.log("port disconnected");
+            delete activeTabPorts[tabId][info.path];
+        });
+
+        port.postMessage({ event: "inject", module: info.path });
+
+        activeTabPorts[tabId][info.path].port = port;
+    } catch (e) {
+        injectQueue = injectQueue.filter(item => item !== info.path);
+        console.error("Failed to inject " + info.path + ": " + e);
     }
 }

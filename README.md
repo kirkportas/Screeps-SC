@@ -4,7 +4,19 @@ Modular chrome extension for the game [screeps.com](https://screeps.com/).
 
 
 ## Installation
-In your Chrome browser go to `Settings -> Extensions -> Load unpacked extension...` and select the Screeps-SC folder.
+The extension uses Manifest V3 and works in both Chrome and Firefox from the same folder.
+
+### Chrome
+1. Go to `chrome://extensions`.
+2. Enable **Developer mode** (top right).
+3. Click **Load unpacked** and select the Screeps-SC folder.
+
+### Firefox
+1. Go to `about:debugging#/runtime/this-firefox`.
+2. Click **Load Temporary Add-on...** and select `manifest.json` in the Screeps-SC folder.
+3. Firefox treats host permissions as optional in Manifest V3: open `about:addons -> Screeps SC -> Permissions` and enable access for `screeps.com` (and `leagueofautomatednations.com` if you use the alliance map), or the modules will not inject.
+
+Note: a temporary add-on is removed when Firefox restarts. For a permanent install the extension must be signed (e.g. `web-ext sign` with an unlisted listing on addons.mozilla.org), or use Firefox Developer Edition/Nightly with `xpinstall.signatures.required` set to `false` in `about:config`.
 
 ## Create your own module
 1. Create a new javascript file under the `/modules` folder.
@@ -21,6 +33,7 @@ In your Chrome browser go to `Settings -> Extensions -> Load unpacked extension.
 
 ## Samples
 The project includes some modules I've created. Click on an image below to see the source code.
+See [MODULES.md](MODULES.md) for a detailed description and verification status of every module.
 
 [![Alliance map](options/images/map.alliance.png "Alliance map")](modules/map.alliance.js)
 [![Detailed market history](options/images/market.history.png "Detailed market history")](modules/market.history.js)
@@ -40,3 +53,7 @@ Also take a look at the [settings.json](settings.json) to see the module configu
 4. If it's the first time the module is injected to the page session the `module.exports.init` function will be called in the module. All other `onUpdate` or `onCompleted` triggers will call the `module.exports.update` function.
 
 ## [FAQ](https://github.com/stybbe/Screeps-SC/wiki/FAQ)
+
+## References
+- [stybbe/Screeps-SC](https://github.com/stybbe/Screeps-SC) — the original extension this project is forked from
+- [geir1983](https://github.com/geir1983) — intermediate fork with shard2/3 battle radar support and other fixes
