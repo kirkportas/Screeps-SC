@@ -3,9 +3,14 @@
  * - custom buttons, with custom commands, using current room, selected object id and x,y mouse coords
  */
 module.exports.init = function () {
-  $.getScript("https://craig.global.ssl.fastly.net/js/mousetrap/mousetrap.min.js?bc893", function () {
+  // Mousetrap is vendored inside the extension (vendor/mousetrap.min.js)
+  // instead of being fetched from a third-party CDN at runtime.
+  var script = document.createElement("script");
+  script.src = module.extensionUrl + "vendor/mousetrap.min.js";
+  script.onload = function () {
     module.exports.update();
-  });
+  };
+  document.head.appendChild(script);
 };
 
 module.exports.update = function () {

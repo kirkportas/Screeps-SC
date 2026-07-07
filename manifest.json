@@ -1,27 +1,47 @@
 {
+  "manifest_version": 3,
   "name": "Screeps SC",
   "description": "Extended browser functionality to the game Screeps",
-  "version": "1.0",
+  "version": "2.0",
   "permissions": [
     "activeTab",
     "storage",
     "tabs",
+    "webRequest",
+    "scripting"
+  ],
+  "host_permissions": [
     "*://screeps.com/*",
-    "*://*.leagueofautomatednations.com/*",
-    "webRequest"
+    "*://*.leagueofautomatednations.com/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["vendor/*"],
+      "matches": ["*://screeps.com/*"]
+    }
   ],
   "background": {
+    "service_worker": "background.js",
     "scripts": ["background.js"]
   },
-  "browser_action": {
+  "action": {
     "default_title": "Screeps SC options"
   },
   "options_ui": {
-    "page": "options/options.html",
-    "chrome_style": true
+    "page": "options/options.html"
   },
-  "manifest_version": 2,
-  "icons": {"16": "icons/icon16.png",
-            "48": "icons/icon48.png",
-            "128": "icons/icon128.png" }
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "screeps-sc@kirk",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  }
 }

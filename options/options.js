@@ -128,10 +128,10 @@ function addModuleOption(module){
 }
 
 function loadOptions() {
-    var xhr = new XMLHttpRequest();
-    xhr.onreadystatechange = xhr.onreadystatechange = function() {
-        if (xhr.readyState == 4) {
-            document.SCsettings = JSON.parse(xhr.responseText);
+    fetch(chrome.runtime.getURL('settings.json'))
+        .then(function(response) { return response.json(); })
+        .then(function(settings) {
+            document.SCsettings = settings;
 
             chrome.storage.sync.get(null, function(items) {
                 document.SCsettings.sync = items;
@@ -140,10 +140,7 @@ function loadOptions() {
                     addModuleOption(module);
                 });
             });
-        }
-    }
-    xhr.open("GET", chrome.extension.getURL('settings.json'), true);
-    xhr.send();
+        });
 }
 
 document.addEventListener('DOMContentLoaded', loadOptions);

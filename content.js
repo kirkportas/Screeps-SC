@@ -4,6 +4,8 @@ function inject(obj){
 
         dispatchEvent(obj.name, {event: 'update'});
     }else{
+        // lets page-world modules load vendored scripts (see web_accessible_resources)
+        obj.extensionUrl = chrome.runtime.getURL("");
         var script = document.createElement('script');
         script.id = obj.name;
         script.textContent =`(function(){var module = ${toString(obj)}; module._init();})();`;
@@ -91,7 +93,7 @@ function dispatchEvent(name, data){
     document.dispatchEvent(evt);
 }
 
-chrome.extension.onConnect.addListener(function(port) {
+chrome.runtime.onConnect.addListener(function(port) {
     port.onMessage.removeListener(eventsSentFromBackground)
     port.onMessage.addListener(eventsSentFromBackground);
 });

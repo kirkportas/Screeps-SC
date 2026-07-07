@@ -8,7 +8,7 @@ module.exports.colors = [
         "#00489C", "#6F0062", "#0CBD66", "#EEC3FF", "#456D75", "#B77B68", "#7A87A1", "#788D66" ];
 
 module.exports.init = function(){
-    module.dispatchEvent({event: 'xhttp', url:'http://www.leagueofautomatednations.com/alliances.js'}, function(response){
+    module.dispatchEvent({event: 'xhttp', url:'https://www.leagueofautomatednations.com/alliances.js'}, function(response){
         module.exports.alliances = JSON.parse(response.data);
 
         module.exports.userToAlliance = {}
@@ -107,7 +107,7 @@ module.exports.update = function(){
                                 newEle.className = 'room-prohibited';
 
                                 if (module.config && module.config.background === "Image"){
-                                    var url = "http://www.leagueofautomatednations.com/obj/" + module.exports.alliances[allianceName].logo;
+                                    var url = "https://www.leagueofautomatednations.com/obj/" + module.exports.alliances[allianceName].logo;
 
                                     newEle.setAttribute("style", `background-image: url("${url}");
                                         background-size: 150px 150px;
@@ -188,7 +188,7 @@ module.exports.update = function(){
                                     top: ${top}px;`;
 
                                 if (module.config && module.config.background === "Image"){
-                                    var url = "http://www.leagueofautomatednations.com/obj/" + module.exports.alliances[allianceName].logo;
+                                    var url = "https://www.leagueofautomatednations.com/obj/" + module.exports.alliances[allianceName].logo;
 
                                     css += `background-image: url("${url}");
                                         background-size: 50px 50px;
@@ -275,7 +275,7 @@ module.exports.update = function(){
                                         top: ${top}px;`;
 
                                     if (module.config && module.config.background === "Image"){
-                                        var url = "http://www.leagueofautomatednations.com/obj/" + module.exports.alliances[allianceName].logo;
+                                        var url = "https://www.leagueofautomatednations.com/obj/" + module.exports.alliances[allianceName].logo;
 
                                         css += `background-image: url("${url}");
                                             background-size: 20px 20px;

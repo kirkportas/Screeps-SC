@@ -1,57 +1,61 @@
+// The only shard the radar tracks; all others are ignored.
+module.exports.radarShard = "shardX";
+
 module.exports.init = function () {
+  var shard = module.exports.radarShard;
+
+  console.log("[battle.radar] init: fetching LOAN data for " + shard);
   module.dispatchEvent(
-    { event: "xhttp", url: "http://www.leagueofautomatednations.com/map/shard0/rooms.js" },
-    function (response0) {
+    { event: "xhttp", url: "https://www.leagueofautomatednations.com/map/" + shard + "/rooms.js" },
+    function (roomsResponse) {
+      console.log("[battle.radar] " + shard + " rooms fetched, bytes:", (roomsResponse.data || "").length);
+      module.exports.shards = {};
+      module.exports.shards[shard] = { rooms: JSON.parse(roomsResponse.data) };
+
       module.dispatchEvent(
-        { event: "xhttp", url: "http://www.leagueofautomatednations.com/map/shard1/rooms.js" },
-        function (response1) {
-          module.dispatchEvent(
-            { event: "xhttp", url: "http://www.leagueofautomatednations.com/map/shard2/rooms.js" },
-            function (response2) {
-              module.dispatchEvent(
-                { event: "xhttp", url: "http://www.leagueofautomatednations.com/map/shard3/rooms.js" },
-                function (response3) {
-                  module.exports.shards = {};
-                  module.exports.shards["shard0"] = { rooms: JSON.parse(response0.data) };
-                  module.exports.shards["shard1"] = { rooms: JSON.parse(response1.data) };
-                  module.exports.shards["shard2"] = { rooms: JSON.parse(response2.data) };
-                  module.exports.shards["shard3"] = { rooms: JSON.parse(response3.data) };
+        { event: "xhttp", url: "https://www.leagueofautomatednations.com/alliances.js" },
+        function (response) {
+          module.alliances = JSON.parse(response.data);
 
-                  module.dispatchEvent(
-                    { event: "xhttp", url: "http://www.leagueofautomatednations.com/alliances.js" },
-                    function (response) {
-                      module.alliances = JSON.parse(response.data);
+          module.userToAlliance = {};
 
-                      module.userToAlliance = {};
+          for (var alliance in module.alliances) {
+            var members = module.alliances[alliance].members;
+            for (var member in members) {
+              var memberName = members[member];
 
-                      for (var alliance in module.alliances) {
-                        var members = module.alliances[alliance].members;
-                        for (var member in members) {
-                          var memberName = members[member];
+              module.userToAlliance[memberName] = alliance;
+            }
+          }
 
-                          module.userToAlliance[memberName] = alliance;
-                        }
-                      }
-
-                      module.getScopeData("navbar", "Top", [], function (Top) {
-                        var radarSvg = module.exports.getRadarSvg();
-                        var sideBar = $(`<a class="md-raised md-button ng-scope md-ink-ripple" title="Battle Radar">
+          console.log("[battle.radar] alliances fetched, bytes:", (response.data || "").length,
+            "- waiting for navbar scope");
+          module.getScopeData("navbar", "Top", [], function (Top) {
+            console.log("[battle.radar] navbar scope ready, inserting button");
+            var radarSvg = module.exports.getRadarSvg();
+            var sideBar = $(`<a class="md-raised md-button ng-scope md-ink-ripple" title="Battle Radar">
                                             ${radarSvg}
                                     </a>`);
 
-                        sideBar.click(function () {
-                          Top.toggleMainNav();
-                          module.exports.openModal();
-                        });
+            sideBar.click(function () {
+              Top.toggleMainNav();
+              module.exports.openModal();
+            });
 
-                        var leftBar = $(".left-controls").prepend(sideBar);
-                      });
-                    }
-                  );
-                }
-              );
-            }
-          );
+            // .left-controls renders later than the navbar scope becomes
+            // ready, so wait for it before inserting (up to 10s)
+            module.wait(function () {
+              return $(".left-controls").length > 0;
+            }, 100, function (error) {
+              if (error) {
+                console.error("[battle.radar] .left-controls never appeared, button not inserted");
+                return;
+              }
+
+              $(".left-controls").prepend(sideBar);
+              console.log("[battle.radar] button inserted:", $('a[title="Battle Radar"]').length);
+            });
+          });
         }
       );
     }
@@ -154,9 +158,10 @@ module.exports.openModal = function () {
     module.exports.closeModal();
   });
 
-  module.ajaxGet("https://screeps.com/api/game/time?shard=" + module.getCurrentShard(), function (data) {
-    module.exports.displayNukeTab(data.time, module.getCurrentShard());
-    module.exports.displayPvPTab(data.time, module.getCurrentShard());
+  var shard = module.exports.radarShard;
+  module.ajaxGet("https://screeps.com/api/game/time?shard=" + shard, function (data) {
+    module.exports.displayNukeTab(data.time, shard);
+    module.exports.displayPvPTab(data.time, shard);
   });
 
   $("#sc-modal-battle-ok").click(function () {
@@ -236,11 +241,11 @@ module.exports.getAllianceHtml = function (playerName) {
   if (alliance) {
     var logo = module.alliances[alliance].logo;
     if (logo) {
-      var logoURL = "http://www.leagueofautomatednations.com/obj/" + module.alliances[alliance].logo;
-      allianceHtml = `<a href='http://www.leagueofautomatednations.com/a/${alliance}'>
+      var logoURL = "https://www.leagueofautomatednations.com/obj/" + module.alliances[alliance].logo;
+      allianceHtml = `<a href='https://www.leagueofautomatednations.com/a/${alliance}'>
                     <img class="sc-battle-round" src='${logoURL}' height='16' width='16'>${alliance}</a>`;
     } else {
-      allianceHtml = `<a href='http://www.leagueofautomatednations.com/a/${alliance}'>${alliance}</a>`;
+      allianceHtml = `<a href='https://www.leagueofautomatednations.com/a/${alliance}'>${alliance}</a>`;
     }
   }
 
