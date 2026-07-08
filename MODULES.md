@@ -10,7 +10,7 @@ Status as of 2026-07-07, after the Manifest V3 port (Chrome + Firefox). Legend:
 | [world.battle.radar](#worldbattleradar) | ✅ | Left menu button, above "World" |
 | [navbar.bucket](#navbarbucket) | ✅ | Expanded profile sysbar (top-right) |
 | [market.history](#markethistory) | ✅ | Market → money history |
-| [market.my.resources](#marketmyresources) | ❌ | Market page |
+| [market.my.resources](#marketmyresources) | ✅ | Market page |
 | [market.deal](#marketdeal) | ✅ | Market → cpuUnlock / accessKey / pixel |
 | [rank.leaderboard](#rankleaderboard) | ✅ | Leaderboard pages |
 | [room.creep.names](#roomcreepnames) | ✅ | Room view |
@@ -89,14 +89,26 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
 
 - **File:** `modules/market.my.resources.js`
 - **Trigger:** market page navigation, or completion of `/api/game/market/orders-index`
-- **What it does:** a personal resource dashboard on the market page: aggregates
-  energy, power, base minerals, and all boost tiers (T1/T2/T3 compounds) across your
-  rooms' storages and terminals.
-- **Verify:** open the Market section; a "my resources" overview panel appears.
-- **Status:** ❌ broken 2026-07-07 — written against the legacy AngularJS market, but
-  the market is now the app2 (Angular Material) UI, so its `getScopeData("market", …)`
-  hooks and `.market.ng-scope` injection anchor no longer exist. Needs an app2 port
-  (like `market.deal`).
+- **What it does:** a personal resource dashboard on the app2 (Angular Material)
+  market page: aggregates energy, power, base minerals, and all boost tiers
+  (T1/T2/T3 compounds) across your rooms' storages and terminals, with a dropdown
+  (None / Storage & Terminal / Storage / Terminal) persisted to `localStorage`
+  (`scMarketDropdown`). Holdings are fetched via a console expression that builds
+  `window.SCMarket`, read back over a console websocket.
+- **Caveats:** app2-based port. The panel is injected via a rAF-coalesced
+  `MutationObserver` (self-heals when Angular re-renders the market) immediately
+  **after `<app-section-header>` inside `<app-market>`** — just below the market tab
+  nav (All orders / My orders / History), above the resource content (see
+  `module.exports.injectionAnchor`). It is **scoped to the All-orders view**
+  (`#!/market/all…`) and is torn down (panel removed + socket closed) on My orders /
+  History. The holdings console expression runs on the shard embedded in a mineral
+  market URL, else `module.exports.resourcesShard` (pinned to `shardX`, or
+  auto-detected from your rooms) — never a silent shard0 fallback. Logs
+  `[market.resources]` breadcrumbs to the page console.
+- **Verify:** open the Market section; a "My resources" overview panel appears above
+  the order table and the amount spans populate with your storage/terminal totals.
+- **Status:** ✅ verified 2026-07-07 (ported to app2; panel anchored after
+  `<app-section-header>`, boost-effect labels added).
 
 ## market.deal
 
