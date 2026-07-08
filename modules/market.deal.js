@@ -95,7 +95,10 @@ module.exports.resolveShard = function () {
     var userid = JSON.parse(localStorage.getItem("users.code.activeWorld"))[0]._id;
     module.ajaxGet("https://screeps.com/api/user/rooms?id=" + userid, function (data) {
       if (data && data.shards && Object.keys(data.shards).length) {
-        module.exports.dealShard = Object.keys(data.shards)[0];
+        var shards = Object.keys(data.shards);
+        // Prefer a shard you actually run on — never auto-pick shard0 when you
+        // have others (a leftover shard0 room shouldn't hijack the deal target).
+        module.exports.dealShard = shards.filter(function (s) { return s !== "shard0"; })[0] || shards[0];
         console.log(
           "[market.deal] deal shard resolved to " +
             module.exports.dealShard +
@@ -246,10 +249,12 @@ module.exports.revertCell = function (cell) {
 module.exports.sendDeal = function (id, amount) {
   var command =
     "var __r = Game.market.deal('" + id + "', " + amount + "); console.log('SC-Deal:' + __r + ':' + '" + id + "');";
-  // Prefer the resolved shard we run code on; the market URL has no shard so
-  // getCurrentShard() returns "" and sendConsoleCommand would default to shard0.
-  var shard = module.exports.dealShard || module.getCurrentShard();
-  console.log("[market.deal] deal sent id=" + id + " amount=" + amount + " shard=" + (shard || "shard0"));
+  // Prefer the resolved shard we run code on; the account-resource market URL has
+  // no shard so getCurrentShard() returns "". Fall back to the shardX pin — NEVER
+  // to shard0, which sendConsoleCommand would otherwise default to (and where the
+  // bot doesn't run, so the deal would silently never execute).
+  var shard = module.exports.dealShard || module.getCurrentShard() || "shardX";
+  console.log("[market.deal] deal sent id=" + id + " amount=" + amount + " shard=" + shard);
 
   if (!module.exports.socket) {
     console.warn("[market.deal] no feedback socket open; sending deal without live result");
