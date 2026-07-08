@@ -3,21 +3,69 @@
 Status as of 2026-07-07, after the Manifest V3 port (Chrome + Firefox). Legend:
 ✅ verified working · 🔄 fixed, awaiting re-test · ⬜ not yet verified · ❌ broken
 
-| Module | Status | Where it appears |
-|---|---|---|
-| [profile.gcl](#profilegcl) | ✅ | Any player profile page |
-| [map.alliance](#mapalliance) | ✅ | World map (owner layer, zoom 3) |
-| [world.battle.radar](#worldbattleradar) | ✅ | Left menu button, above "World" |
-| [navbar.bucket](#navbarbucket) | ✅ | Expanded profile sysbar (top-right) |
-| [market.history](#markethistory) | ✅ | Market → money history |
-| [market.my.resources](#marketmyresources) | ✅ | Market page |
-| [market.deal](#marketdeal) | ✅ | Market → cpuUnlock / accessKey / pixel |
-| [rank.leaderboard](#rankleaderboard) | ✅ | Leaderboard pages |
-| [room.creep.names](#roomcreepnames) | ✅ | Room view |
-| [room.console.icons](#roomconsoleicons) | ✅ | Room view console |
+| Module | Status | Client | Where it appears |
+|---|---|---|---|
+| [profile.gcl](#profilegcl) | ✅ | app1 | Any player profile page |
+| [map.alliance](#mapalliance) | ✅ | app1 | World map (owner layer, zoom 3) |
+| [world.battle.radar](#worldbattleradar) | ✅ | app1 | Left menu button, above "World" |
+| [navbar.bucket](#navbarbucket) | ✅ | app1 | Expanded profile sysbar (top-right) |
+| [market.history](#markethistory) | ✅ | app2 | Market → money history |
+| [market.my.resources](#marketmyresources) | ✅ | app2 | Market page |
+| [market.deal](#marketdeal) | ✅ | app2 | Market → cpuUnlock / accessKey / pixel |
+| [rank.leaderboard](#rankleaderboard) | ✅ | app1 | Leaderboard pages |
+| [room.creep.names](#roomcreepnames) | ✅ | app1 | Room view |
+| [room.console.icons](#roomconsoleicons) | ✅ | app1 | Room view console |
+
+The **Client** column records which generation of the screeps.com web client each
+module hooks — see [Client compatibility](#client-compatibility-app1--app2) below.
 
 All LOAN-based modules require the `leagueofautomatednations.com` host permission
 (in Firefox: `about:addons → Screeps SC → Permissions`).
+
+---
+
+## Client compatibility (app1 / app2)
+
+The screeps.com web client exists in two generations, and every module in this
+extension works by hooking that client's DOM/scope — none are truly
+client-agnostic. Knowing which generation a module targets is what determines
+whether it keeps working as the site evolves.
+
+- **app1** — the legacy **AngularJS** client. Modules read the page's Angular scope
+  (`module.getScopeData` / `setScopeData`, `angular.element(...).scope()`), match
+  `ng-scope` / `ng-binding` classes, and manipulate the DOM through global jQuery
+  (`$`) against app1 selectors like `.left-controls`, `.stats-controls`,
+  `.sysbar.ng-scope`, `.console-controls`, and `.table.table-striped`.
+- **app2** — the newer **Angular (Material)** client. Modules target `app-*` custom
+  elements (`app-market`, `app-section-header`), the Material data grid
+  (`mat-table` / `mat-row` / `mat-cell`), and CDK column classes (`.cdk-column-*`).
+
+**Why app1 coupling is a long-term breakage risk:** as screeps.com migrates pages
+from the AngularJS client to app2, the app1 scope objects, `ng-scope` markup, and
+legacy selectors that these modules depend on disappear. When that happens an
+app1-coupled module fails **silently** — the page still loads, but the injected
+scope read returns nothing and the enhancement just never appears, with no error.
+The `Status` column above reflects verification against the client generation the
+module targets *today*; it is not a promise the target page will stay on app1.
+
+**Porting backlog (still app1-dependent):**
+
+- `profile.gcl` — reads the `profile` AngularJS scope; anchors on `.stats-controls`.
+- `map.alliance` — reads the `WorldMap` scope; matches `ng-binding` / `ng-scope`
+  room and sector elements.
+- `world.battle.radar` — reads the `navbar` (`Top`) scope; inserts into
+  `.left-controls`.
+- `navbar.bucket` — inserts under `.sysbar.ng-scope .mem`, keyed off
+  `.navbar-profile-btn`.
+- `rank.leaderboard` — reads the leaderboard scope via
+  `angular.element(...).scope()`; rewrites `.table.table-striped` rows.
+- `room.creep.names` — reads the `room` (`Room.objects`) scope.
+- `room.console.icons` — reads the `console` (`Console`) and `room` (`Room`) scopes
+  via `angular.element(...).scope()`; anchors on `.console-controls`.
+
+**Already on app2 (no action needed):** `market.my.resources` and `market.deal`
+were ported to the Angular Material market page, and `market.history` hooks the
+app2 `mat-table`. See each module's section for anchor details.
 
 ---
 
