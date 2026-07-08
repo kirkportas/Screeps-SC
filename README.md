@@ -1,9 +1,6 @@
 # <img src="icons/icon48.png" width="24"> Screeps-SC
 Modular chrome extension for the game [screeps.com](https://screeps.com/).
 
-See [MODULES.md](MODULES.md) for a description and screenshot of every module.
-Credit to Stybbe and Geir for these, this fork modernizes and adds a little polish.
-
 ## Installation
 The extension uses Manifest V3 and works in both Chrome and Firefox from the same folder.
 
@@ -20,14 +17,17 @@ The extension uses Manifest V3 and works in both Chrome and Firefox from the sam
 Note: a temporary add-on is removed when Firefox restarts. For a permanent install the extension must be signed (e.g. `web-ext sign` with an unlisted listing on addons.mozilla.org), or use Firefox Developer Edition/Nightly with `xpinstall.signatures.required` set to `false` in `about:config`.
 
 ## Module Details & Screenshots
-[![Alliance map](options/images/map.alliance.png "Alliance map")](modules/map.alliance.js)
-[![Detailed market history](options/images/market.history.png "Detailed market history")](modules/market.history.js)
-[![Overview for resources](options/images/market.my.resources.png "Overview for resources")](modules/market.my.resources.js)
-[![See GCL bar for any player](options/images/profile.gcl.png "See GCL bar for any player")](modules/profile.gcl.js)
-[![Detailed leaderboard](options/images/rank.leaderboard.png "Detailed leaderboard")](modules/rank.leaderboard.js)
-[![Console macros](options/images/room.console.icons.png "Console macros")](modules/room.console.icons.js)
-[![Enemy creep names](options/images/room.creep.names.png "Enemy creep names")](modules/room.creep.names.js)
-[![Battle radar](options/images/world.battle.radar.png "Battle radar")](modules/world.battle.radar.js)
+See [MODULES.md](MODULES.md) for a description and screenshot of every module.
+Credit to Stybbe and Geir for these, this fork modernizes and adds a little polish.
+
+- [map.alliance](modules/map.alliance.js)
+- [market.history](modules/market.history.js)
+- [market.my.resources](modules/market.my.resources.js)
+- [profile.gcl](modules/profile.gcl.js)
+- [rank.leaderboard](modules/rank.leaderboard.js)
+- [room.console.icons](modules/room.console.icons.js)
+- [room.creep.names](modules/room.creep.names.js)
+- [world.battle.radar](modules/world.battle.radar.js)
 
 Also take a look at the [settings.json](settings.json) to see the module configuration.
 
