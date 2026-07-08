@@ -1,8 +1,8 @@
 # <img src="icons/icon48.png" width="24"> Screeps-SC
 Modular chrome extension for the game [screeps.com](https://screeps.com/).
 
-The project includes some modules I've created. Click on an image below to see the source code.
-See [MODULES.md](MODULES.md) for a detailed description and verification status of every module.
+See [MODULES.md](MODULES.md) for a description and screenshot of every module.
+Credit to Stybbe and Geir for these, this fork modernizes and adds a little polish.
 
 ## Installation
 The extension uses Manifest V3 and works in both Chrome and Firefox from the same folder.
