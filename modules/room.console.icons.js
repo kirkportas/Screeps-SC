@@ -40,24 +40,67 @@ module.exports.update = function () {
 
     if (scCustomIconString) {
       var scCustomIconArr = JSON.parse(scCustomIconString);
+      var migrated = false;
+      var seenUids = {};
 
       for (var i = 0; i < scCustomIconArr.length; i++) {
         var obj = scCustomIconArr[i];
 
-        module.exports.createNewIconButton(obj.id, obj.icon, obj.code, obj.keybinding);
+        // Backward-compat: older entries keyed off a DOM id derived from the icon
+        // HTML (which could be malformed/duplicated). Give every entry a stable,
+        // unique `uid` that is independent of the icon content. Migrate in place so
+        // deletions become reliable and persist across reloads.
+        if (!obj.uid || seenUids[obj.uid]) {
+          obj.uid = module.exports.generateUid();
+          migrated = true;
+        }
+
+        seenUids[obj.uid] = true;
+
+        module.exports.createNewIconButton(obj.uid, obj.icon, obj.code, obj.keybinding);
+      }
+
+      if (migrated) {
+        localStorage.setItem("scCustomIcons", JSON.stringify(scCustomIconArr));
       }
     }
   });
 };
 
-module.exports.createNewIconButton = function (id, icon, code, keybinding) {
+// Generates a short, unique key that is independent of the icon markup. Used as
+// both the button's DOM id suffix and the removal key in localStorage. Avoids
+// relying on crypto.randomUUID being present.
+module.exports.generateUid = function () {
+  return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+};
+
+// Builds the inner icon markup for a button. The `icon` value may be a Font
+// Awesome class name (e.g. "fa-circle") OR pasted raw HTML (e.g.
+// '<i class="fa-solid fa-circle" style="color:#ff0"></i>'). Either way the icon
+// content is confined to the button body and never leaks into the DOM id.
+module.exports.buildIconMarkup = function (icon) {
+  icon = icon || "";
+
+  if (/[<>]/.test(icon)) {
+    // Looks like pasted HTML markup: render it as-is.
+    return icon;
+  }
+
+  return `<i class="fa ${icon}"></i>`;
+};
+
+module.exports.createNewIconButton = function (uid, icon, code, keybinding) {
+  var id = "sc-btn-custom-" + uid;
+
   if (!document.getElementById(id)) {
     if (code) {
       code = code.replace(/(["])/g, "&quot;");
     }
 
-    var newBtnString = `<button id="${id}" class="md-primary md-hue-1 md-button md-ink-ripple" type="button" title="${code}">
-            <i class="fa ${icon}"></i>
+    var iconMarkup = module.exports.buildIconMarkup(icon);
+
+    var newBtnString = `<button id="${id}" data-sc-uid="${uid}" class="md-primary md-hue-1 md-button md-ink-ripple" type="button" title="${code}">
+            ${iconMarkup}
             <div class="md-ripple-container"></div>
         </button>`;
 
@@ -146,6 +189,16 @@ module.exports.removeIcon = function () {
 
   if (elements.length) {
     var element = elements[elements.length - 1];
+
+    // Map DOM element -> storage entry exactly via the stable uid. Prefer the
+    // data attribute; fall back to deriving it from the id (which is always
+    // "sc-btn-custom-" + uid) for any button that predates the data attribute.
+    var uid = $(element).attr("data-sc-uid");
+
+    if (uid === undefined || uid === "") {
+      uid = element.id.replace(/^sc-btn-custom-/, "");
+    }
+
     var scCustomIcons = localStorage.getItem("scCustomIcons");
     var arr = [];
 
@@ -154,7 +207,7 @@ module.exports.removeIcon = function () {
     }
 
     arr = arr.filter(function (obj) {
-      return obj.id !== element.id;
+      return obj.uid !== uid;
     });
 
     localStorage.setItem("scCustomIcons", JSON.stringify(arr));
@@ -260,17 +313,9 @@ module.exports.openModal = function () {
     var code = $("#sc-modal-icon-code").val();
     var keybinding = $("#sc-modal-icon-keybinding").val();
 
-    var id = "sc-btn-custom-" + icon;
-
-    if (document.getElementById(id)) {
-      var index = 0;
-      var newId = "";
-      do {
-        newId = id + "-" + index++;
-      } while (document.getElementById(newId));
-
-      id = newId;
-    }
+    // The uid is the stable removal key; it is deliberately independent of the
+    // icon HTML so pasted markup can never corrupt the DOM id or storage key.
+    var uid = module.exports.generateUid();
 
     var scCustomIcons = localStorage.getItem("scCustomIcons");
     var arr = [];
@@ -279,10 +324,10 @@ module.exports.openModal = function () {
       var arr = JSON.parse(scCustomIcons);
     }
 
-    arr.push({ id: id, icon: icon, code: code, keybinding: keybinding });
+    arr.push({ uid: uid, icon: icon, code: code, keybinding: keybinding });
     localStorage.setItem("scCustomIcons", JSON.stringify(arr));
 
-    module.exports.createNewIconButton(id, icon, code, keybinding);
+    module.exports.createNewIconButton(uid, icon, code, keybinding);
 
     module.exports.closeModal();
   });
