@@ -152,6 +152,9 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
 - **Status:** ✅ verified 2026-07-07 — deals execute on shardX
   (`module.exports.dealShard`) and the row flashes the result.
 
+![Deal button on account-resource order rows](images/screeps-sc-market-deal-ui.png)
+![Inline confirm form with anti-double-click countdown](images/screeps-sc-market-deal-confirm.png)
+
 ## rank.leaderboard
 
 - **File:** `modules/rank.leaderboard.js`
@@ -161,6 +164,8 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   leaderboard rows.
 - **Verify:** open the leaderboard; rows show an extra alliance column.
 - **Status:** ✅ verified 2026-07-07.
+
+![Alliance logos and links added to leaderboard rows](images/screeps-sc-leaderboard-enhancements.png)
 
 ## room.creep.names
 
