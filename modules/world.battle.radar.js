@@ -31,30 +31,50 @@ module.exports.init = function () {
           console.log("[battle.radar] alliances fetched, bytes:", (response.data || "").length,
             "- waiting for navbar scope");
           module.getScopeData("navbar", "Top", [], function (Top) {
-            console.log("[battle.radar] navbar scope ready, inserting button");
+            console.log("[battle.radar] navbar scope ready, arming button injector");
             var radarSvg = module.exports.getRadarSvg();
-            var sideBar = $(`<a class="md-raised md-button ng-scope md-ink-ripple" title="Battle Radar">
+
+            // The Screeps Angular UI re-renders .left-controls on route changes
+            // (map <-> room <-> world), which evicts any button we injected, and
+            // .left-controls itself renders later than the navbar scope. A
+            // one-shot insert therefore races both and shows up only sometimes.
+            // Instead, re-assert the button whenever .left-controls exists but
+            // the button is gone.
+            function ensureButton() {
+              var controls = $(".left-controls");
+              if (controls.length === 0) return; // nav not rendered yet
+              if ($('a[title="Battle Radar"]').length > 0) return; // already there
+
+              var sideBar = $(`<a class="md-raised md-button ng-scope md-ink-ripple" title="Battle Radar">
                                             ${radarSvg}
                                     </a>`);
-
-            sideBar.click(function () {
-              Top.toggleMainNav();
-              module.exports.openModal();
-            });
-
-            // .left-controls renders later than the navbar scope becomes
-            // ready, so wait for it before inserting (up to 10s)
-            module.wait(function () {
-              return $(".left-controls").length > 0;
-            }, 100, function (error) {
-              if (error) {
-                console.error("[battle.radar] .left-controls never appeared, button not inserted");
-                return;
-              }
-
-              $(".left-controls").prepend(sideBar);
+              sideBar.click(function () {
+                Top.toggleMainNav();
+                module.exports.openModal();
+              });
+              controls.prepend(sideBar);
               console.log("[battle.radar] button inserted:", $('a[title="Battle Radar"]').length);
+            }
+
+            ensureButton();
+
+            // Watch the DOM for the re-renders that evict the button and
+            // re-assert it. Mutation bursts (the game view renders constantly)
+            // are coalesced into one check per frame so ensureButton — which is
+            // just two cheap selector lookups — never runs in a tight loop.
+            if (module.exports.buttonObserver) {
+              module.exports.buttonObserver.disconnect();
+            }
+            var checkQueued = false;
+            module.exports.buttonObserver = new MutationObserver(function () {
+              if (checkQueued) return;
+              checkQueued = true;
+              requestAnimationFrame(function () {
+                checkQueued = false;
+                ensureButton();
+              });
             });
+            module.exports.buttonObserver.observe(document.body, { childList: true, subtree: true });
           });
         }
       );
