@@ -11,6 +11,7 @@ Status as of 2026-07-07, after the Manifest V3 port (Chrome + Firefox). Legend:
 | [navbar.bucket](#navbarbucket) | ⬜ | Expanded profile sysbar (top-right) |
 | [market.history](#markethistory) | ⬜ | Market → money history |
 | [market.my.resources](#marketmyresources) | ⬜ | Market page |
+| [market.deal](#marketdeal) | ⬜ | Market → cpuUnlock / accessKey / pixel |
 | [rank.leaderboard](#rankleaderboard) | ⬜ | Leaderboard pages |
 | [room.creep.names](#roomcreepnames) | ⬜ | Room view |
 | [room.console.icons](#roomconsoleicons) | ⬜ | Room view console |
@@ -91,6 +92,34 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   energy, power, base minerals, and all boost tiers (T1/T2/T3 compounds) across your
   rooms' storages and terminals.
 - **Verify:** open the Market section; a "my resources" overview panel appears.
+- **Status:** ⬜ not yet verified.
+
+## market.deal
+
+- **File:** `modules/market.deal.js`
+- **Trigger:** market page navigation (`https://screeps.com/a/#!/market/all/`), or
+  completion of `https://screeps.com/api/game/market/orders`
+- **What it does:** adds a green **Deal** button to every order row on the
+  **account-level resource** pages only — `cpuUnlock`, `accessKey`, `pixel`
+  (`.../market/all/cpuUnlock` etc.). Clicking a row's Deal button opens an inline
+  form: an amount field pre-filled with the order's remaining amount, plus a
+  **Confirm** button that stays disabled for a 4-second countdown (`Confirm (4)…`)
+  as an anti-double-click safeguard, and a **×** cancel. Confirm runs
+  `Game.market.deal(id, amount)` through the in-game console; a console websocket
+  (subscribed to `user:<id>/console`) watches for the `SC-Deal:<code>:<id>`
+  sentinel and flashes the row green **OK** or red with the error code
+  (e.g. `-6 no resources`, `-10 invalid args`) before reverting.
+- **Caveats:** intentionally does **not** appear on mineral / commodity resources,
+  because `Game.market.deal` for those needs a target room this module doesn't
+  handle. Both buy and sell orders get a button — `Game.market.deal(id, amount)`
+  works for either. Order `_id` and remaining amount are read live from the row's
+  CDK cells at click time (rows are recycled by Angular, so nothing is cached on the
+  element). Injection self-heals via a rAF-coalesced `MutationObserver`. If the
+  feedback socket can't open, the deal is still sent (just without the live flash).
+  Logs `[market.deal]` breadcrumbs to the page console.
+- **Verify:** open Market → `cpuUnlock` (or `accessKey` / `pixel`); each order row
+  gets a green Deal button on the right. Click it, wait for the countdown, Confirm;
+  the row flashes OK/error and the console shows the `[market.deal]` trail.
 - **Status:** ⬜ not yet verified.
 
 ## rank.leaderboard

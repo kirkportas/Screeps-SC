@@ -85,7 +85,15 @@
         {
             "path": "modules/navbar.bucket.js",
             "runAt":{
-                "onCompleted": "https://screeps.com/api/user/world-status" 
+                "onCompleted": "https://screeps.com/api/user/world-status"
+            },
+            "options":{}
+        },
+        {
+            "path": "modules/market.deal.js",
+            "runAt":{
+                "onUpdate": "https://screeps.com/a/#!/market/all/",
+                "onCompleted": "https://screeps.com/api/game/market/orders"
             },
             "options":{}
         }
