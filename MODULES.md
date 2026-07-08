@@ -30,6 +30,8 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
 - **Verify:** open another player's profile; a GCL bar appears in the stats area.
 - **Status:** ✅ verified 2026-07-07 (Firefox).
 
+![GCL progress bar on a player profile](images/screeps-sc-gcl-bar.png)
+
 ## map.alliance
 
 - **File:** `modules/map.alliance.js`
@@ -43,6 +45,8 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   alliance's GCL rank changes, and ranks 56 apart collide.
 - **Verify:** world map → owner layer, zoom 3; alliance rooms get translucent color washes.
 - **Status:** ✅ verified 2026-07-07 (Firefox) — after switching LOAN URLs to https.
+
+![Alliance territory overlay on the world map](images/screeps-sc-alliance-overlay.png)
 
 ## world.battle.radar
 
@@ -61,6 +65,9 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   rAF-coalesced `MutationObserver` that re-inserts it whenever Angular re-renders
   `.left-controls` (e.g. loading the room view).
 
+![Battle radar — Active Nukes tab](images/screeps-sc-battle-radar-nukes.png)
+![Battle radar — Current PvP tab](images/screeps-sc-battle-radar-pvp.png)
+
 ## navbar.bucket
 
 - **File:** `modules/navbar.bucket.js`
@@ -71,6 +78,8 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
 - **Verify:** click your profile button in the top navbar; a Bucket bar appears under
   Memory and fills with a live value.
 - **Status:** ✅ verified 2026-07-07.
+
+![Live CPU bucket meter under the Memory bar](images/screeps-sc-bucket-bar.png)
 
 ## market.history
 
@@ -84,6 +93,8 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
 - **Verify:** Market → money history; the table gains extra detail/pagination beyond
   the stock view.
 - **Status:** ✅ verified 2026-07-07.
+
+![Enriched market money-history table](images/screeps-sc-order-history-ui.png)
 
 ## market.my.resources
 
@@ -109,6 +120,8 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   the order table and the amount spans populate with your storage/terminal totals.
 - **Status:** ✅ verified 2026-07-07 (ported to app2; panel anchored after
   `<app-section-header>`, boost-effect labels added).
+
+![My resources stockpile panel above the order table](images/screeps-sc-orders-stockpile-ui.png)
 
 ## market.deal
 
@@ -139,6 +152,9 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
 - **Status:** ✅ verified 2026-07-07 — deals execute on shardX
   (`module.exports.dealShard`) and the row flashes the result.
 
+![Deal button on account-resource order rows](images/screeps-sc-market-deal-ui.png)
+![Inline confirm form with anti-double-click countdown](images/screeps-sc-market-deal-confirm.png)
+
 ## rank.leaderboard
 
 - **File:** `modules/rank.leaderboard.js`
@@ -148,6 +164,8 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   leaderboard rows.
 - **Verify:** open the leaderboard; rows show an extra alliance column.
 - **Status:** ✅ verified 2026-07-07.
+
+![Alliance logos and links added to leaderboard rows](images/screeps-sc-leaderboard-enhancements.png)
 
 ## room.creep.names
 
@@ -174,6 +192,9 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   runtime).
 - **Verify:** open a room; macro icon buttons appear near the console input.
 - **Status:** ✅ verified 2026-07-07 (Mousetrap loads from the vendored copy).
+
+![Console macro buttons in the room view](images/screeps-sc-console-icon-create.png)
+![Adding a new console macro command](images/screeps-sc-console-icon-add-command.png)
 
 ---
 
