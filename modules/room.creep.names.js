@@ -1,5 +1,8 @@
 /**
- * Not sure what this actually does, but it relates to showing hostile names
+ * Draws each creep's name as a text label in the room view: reads the AngularJS
+ * Room.objects scope and writes the name into each creep's SVG <text> node (so
+ * hostile creeps get name tags too), re-running when the native "Show hostile
+ * names" toggle changes.
  */
 module.exports.init = function () {
   $("body").on("change", '[heading="Show hostile names"] > div > div > label > input', function (e) {
@@ -20,7 +23,7 @@ module.exports.update = function () {
         if (ele) {
           var textElement = ele.getElementsByTagName("text")[0];
           if (textElement) {
-            textElement.innerHTML = obj.name;
+            textElement.textContent = obj.name;
           }
         }
       }
