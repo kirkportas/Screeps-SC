@@ -20,7 +20,7 @@ module.exports.init = function () {
 
       if (module.exports.socket) {
         module.exports.closeSocket();
-        document.getElementById("bucket_value").innerHTML = "...";
+        document.getElementById("bucket_value").textContent = "...";
       } else {
         module.exports.listenToConsole();
         module.exports.fetchBucket();
@@ -54,7 +54,7 @@ module.exports.updateBucket = function (value) {
 
   document.getElementById("bucket_width").style.width = (bucket / 1e4) * 100 + "%";
   document.getElementById("bucket_opacity").style.opacity = 1 - bucket / 1e4;
-  document.getElementById("bucket_value").innerHTML = bucket;
+  document.getElementById("bucket_value").textContent = bucket;
 };
 
 module.exports.fetchBucket = function () {
@@ -63,7 +63,7 @@ module.exports.fetchBucket = function () {
 };
 
 module.exports.listenToConsole = function () {
-  var auth = JSON.parse(localStorage.getItem("auth"));
+  var auth = module.getScreepsAuth();
   var userid = JSON.parse(localStorage.getItem("users.code.activeWorld"))[0]._id;
   var host = "wss://screeps.com/socket/websocket";
 
