@@ -1,20 +1,20 @@
 # Module Reference & Verification Checklist
 
 Status as of 2026-07-07, after the Manifest V3 port (Chrome + Firefox). Legend:
-✅ verified working · 🔄 fixed, awaiting re-test · ⬜ not yet verified
+✅ verified working · 🔄 fixed, awaiting re-test · ⬜ not yet verified · ❌ broken
 
 | Module | Status | Where it appears |
 |---|---|---|
 | [profile.gcl](#profilegcl) | ✅ | Any player profile page |
 | [map.alliance](#mapalliance) | ✅ | World map (owner layer, zoom 3) |
-| [world.battle.radar](#worldbattleradar) | 🔄 | Left menu button, above "World" |
-| [navbar.bucket](#navbarbucket) | ⬜ | Expanded profile sysbar (top-right) |
-| [market.history](#markethistory) | ⬜ | Market → money history |
-| [market.my.resources](#marketmyresources) | ⬜ | Market page |
-| [market.deal](#marketdeal) | ⬜ | Market → cpuUnlock / accessKey / pixel |
-| [rank.leaderboard](#rankleaderboard) | ⬜ | Leaderboard pages |
-| [room.creep.names](#roomcreepnames) | ⬜ | Room view |
-| [room.console.icons](#roomconsoleicons) | ⬜ | Room view console |
+| [world.battle.radar](#worldbattleradar) | ✅ | Left menu button, above "World" |
+| [navbar.bucket](#navbarbucket) | ✅ | Expanded profile sysbar (top-right) |
+| [market.history](#markethistory) | ✅ | Market → money history |
+| [market.my.resources](#marketmyresources) | ❌ | Market page |
+| [market.deal](#marketdeal) | ✅ | Market → cpuUnlock / accessKey / pixel |
+| [rank.leaderboard](#rankleaderboard) | ✅ | Leaderboard pages |
+| [room.creep.names](#roomcreepnames) | ✅ | Room view |
+| [room.console.icons](#roomconsoleicons) | ✅ | Room view console |
 
 All LOAN-based modules require the `leagueofautomatednations.com` host permission
 (in Firefox: `about:addons → Screeps SC → Permissions`).
@@ -57,8 +57,9 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   different shard). Init logs `[battle.radar]` breadcrumbs to the page console.
 - **Verify:** hard-refresh any screeps page; console shows the `[battle.radar]` trail
   ending in `button inserted: 1`; radar icon appears above "World" in the left menu.
-- **Status:** 🔄 fixed 2026-07-07 (waits for `.left-controls` to render before
-  inserting the button) — awaiting re-test.
+- **Status:** ✅ verified 2026-07-07 (Firefox). The button self-heals via a
+  rAF-coalesced `MutationObserver` that re-inserts it whenever Angular re-renders
+  `.left-controls` (e.g. loading the room view).
 
 ## navbar.bucket
 
@@ -69,7 +70,7 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   the value; clicking the profile button again closes the socket.
 - **Verify:** click your profile button in the top navbar; a Bucket bar appears under
   Memory and fills with a live value.
-- **Status:** ⬜ not yet verified.
+- **Status:** ✅ verified 2026-07-07.
 
 ## market.history
 
@@ -82,7 +83,7 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   verbose debug logging left in from earlier work.
 - **Verify:** Market → money history; the table gains extra detail/pagination beyond
   the stock view.
-- **Status:** ⬜ not yet verified.
+- **Status:** ✅ verified 2026-07-07.
 
 ## market.my.resources
 
@@ -92,7 +93,10 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   energy, power, base minerals, and all boost tiers (T1/T2/T3 compounds) across your
   rooms' storages and terminals.
 - **Verify:** open the Market section; a "my resources" overview panel appears.
-- **Status:** ⬜ not yet verified.
+- **Status:** ❌ broken 2026-07-07 — written against the legacy AngularJS market, but
+  the market is now the app2 (Angular Material) UI, so its `getScopeData("market", …)`
+  hooks and `.market.ng-scope` injection anchor no longer exist. Needs an app2 port
+  (like `market.deal`).
 
 ## market.deal
 
@@ -120,7 +124,8 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
 - **Verify:** open Market → `cpuUnlock` (or `accessKey` / `pixel`); each order row
   gets a green Deal button on the right. Click it, wait for the countdown, Confirm;
   the row flashes OK/error and the console shows the `[market.deal]` trail.
-- **Status:** ⬜ not yet verified.
+- **Status:** ✅ verified 2026-07-07 — deals execute on shardX
+  (`module.exports.dealShard`) and the row flashes the result.
 
 ## rank.leaderboard
 
@@ -130,17 +135,20 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
 - **What it does:** adds each player's alliance (logo + link to their LOAN page) to
   leaderboard rows.
 - **Verify:** open the leaderboard; rows show an extra alliance column.
-- **Status:** ⬜ not yet verified.
+- **Status:** ✅ verified 2026-07-07.
 
 ## room.creep.names
 
 - **File:** `modules/room.creep.names.js`
 - **Trigger:** navigating to `https://screeps.com/a/#!/room/`
-- **What it does:** hooks the room-view "Show hostile names" setting so enemy creeps
-  get visible name labels (smallest module, ~30 lines).
+- **What it does:** draws each creep's name as a text label on the creep in the room
+  view. Reads the AngularJS `Room.objects` scope, filters for creeps, and writes each
+  one's `name` into its SVG `<text>` node — so hostile creeps get on-screen name tags,
+  not just your own. Re-runs when the native "Show hostile names" toggle changes
+  (smallest module, ~30 lines).
 - **Verify:** open a room with hostile creeps and toggle "Show hostile names" in the
-  room display settings.
-- **Status:** ⬜ not yet verified.
+  room display settings; enemy creeps show name labels.
+- **Status:** ✅ verified 2026-07-07.
 
 ## room.console.icons
 
@@ -153,7 +161,7 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   via `web_accessible_resources` (previously fetched from a third-party CDN at
   runtime).
 - **Verify:** open a room; macro icon buttons appear near the console input.
-- **Status:** ⬜ not yet verified.
+- **Status:** ✅ verified 2026-07-07 (Mousetrap loads from the vendored copy).
 
 ---
 
