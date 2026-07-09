@@ -264,6 +264,20 @@ module.exports.sendDeal = function (id, amount) {
   module.sendConsoleCommand(command, undefined, shard);
 };
 
+// Click the market page's own Refresh control. After a filled order the row is
+// stale but still shown; rather than removing it ourselves we let the page
+// re-fetch the order list and drop it. The button lives in <app-market-refresh>
+// (its ng-generated attributes are volatile, so match the element, not those).
+module.exports.triggerPageRefresh = function () {
+  var btn = $("app-market-refresh button").first();
+  if (btn.length) {
+    btn.click();
+    console.log("[market.deal] page refresh triggered");
+  } else {
+    console.warn("[market.deal] could not find the page Refresh button");
+  }
+};
+
 // Flash the row's cell with the result, then revert to the Deal button.
 module.exports.showResult = function (id, code) {
   console.log("[market.deal] result received id=" + id + " code=" + code);
@@ -293,6 +307,16 @@ module.exports.showResult = function (id, code) {
   setTimeout(function () {
     module.exports.revertCell(cell);
   }, 2000);
+
+  // A filled order is now stale in the table. A second after it lands, click the
+  // page's own Refresh so the client re-fetches the list and drops it (the table
+  // re-render also clears our cell). Only on success — a failed deal leaves the
+  // order untouched, so there is nothing to refresh away.
+  if (ok) {
+    setTimeout(function () {
+      module.exports.triggerPageRefresh();
+    }, 1000);
+  }
 };
 
 module.exports.listenToConsole = function () {
