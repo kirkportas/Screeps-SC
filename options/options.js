@@ -1,3 +1,29 @@
+// Firefox exposes the promise-based `browser` namespace; Chrome MV3 `chrome.*`
+// also returns promises when no callback is passed.
+var api = globalThis.browser || chrome;
+
+// Firefox MV3 treats manifest host permissions as optional and withholds them
+// until the user grants access, so the modules never inject on a fresh install.
+// The banner lets the user grant them from a click (a user gesture is required).
+// On Chrome these are granted at install time, so the banner stays hidden.
+var HOST_PERMISSIONS = {
+    origins: ["*://screeps.com/*", "*://*.leagueofautomatednations.com/*"]
+};
+
+function refreshPermissionBanner() {
+    api.permissions.contains(HOST_PERMISSIONS).then(function (granted) {
+        document.getElementById('perms').style.display = granted ? 'none' : 'block';
+    });
+}
+
+function requestPermissions() {
+    api.permissions.request(HOST_PERMISSIONS).then(function (granted) {
+        if (granted) {
+            refreshPermissionBanner();
+        }
+    });
+}
+
 function save_options() {
     var storage = {}
     
@@ -144,4 +170,6 @@ function loadOptions() {
 }
 
 document.addEventListener('DOMContentLoaded', loadOptions);
+document.addEventListener('DOMContentLoaded', refreshPermissionBanner);
 document.getElementById('save').addEventListener('click', save_options);
+document.getElementById('grant').addEventListener('click', requestPermissions);
