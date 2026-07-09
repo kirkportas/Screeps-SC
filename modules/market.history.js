@@ -1,13 +1,10 @@
 module.exports.init = function () {
-  console.log("market.history.js init called");
   try {
     var userid = JSON.parse(localStorage.getItem("users.code.activeWorld"))[0]._id;
     module.exports.userId = userid;
   } catch (error) {
     console.error("Failed to get userId from localstorage", error);
-    console.log("attempting to get userId from /api/auth/me");
     module.ajaxGet(window.location.origin + "/api/auth/me", function (data, error) {
-      console.log(data, error);
       if (data) {
         module.exports.userId = data._id;
       } else {
@@ -17,12 +14,9 @@ module.exports.init = function () {
     });
   }
 
-  console.log("Found userId", module.exports.userId);
-
   module.ajaxGet("https://screeps.com/api/user/rooms?id=" + userid, function (data, error) {
     module.exports.shards = {};
     if (data && data.shards) {
-      console.log("Found shards", data.shards);
       for (const [shard, rooms] of Object.entries(data.shards)) {
         module.exports.shards[shard] = { rooms };
       }
@@ -31,22 +25,16 @@ module.exports.init = function () {
     }
 
     for (const [shardName, shard] of Object.entries(module.exports.shards)) {
-      // return self.req('GET', 'https://screeps.com/api/game/world-size', { shard })
-      console.log(`Fetching world size for ${shardName}`);
       module.ajaxGet("https://screeps.com/api/game/world-size?shard=" + shardName, function (worldSize, error) {
-        console.log(`${JSON.stringify(worldSize)}`);
         shard.width = worldSize.width;
         shard.height = worldSize.height;
       });
     }
 
-    // module.exports.update();
-    // var element = document.getElementById(id);
     module.exports.page = 0;
     module.exports.fetchMarketHistoryPage(module.exports.page);
   });
 
-  console.log("injecting styles");
   var style = document.createElement("style");
   style.innerHTML = ".mat-row:nth-of-type(2n+1) { background-color: rgba(255, 255, 255, 0.02); }";
   style.innerHTML +=
@@ -67,14 +55,8 @@ module.exports.init = function () {
   };
 
   var appHistory = document.getElementsByTagName("app-history")[0];
-  // appHistory.innerHTML = ''
   module.exports.container = document.createElement("div");
   module.exports.container.style = "width: 100%; max-width:1100px; margin:auto;text-align:center;";
-  // const todo = document.createElement("div");
-  // todo.style = "text-align:left;color:white";
-  // todo.innerHTML =
-  // "<h1>TODO:</h1><ul><li>Fetch player names</li><li>Fetch player icon</li><li>date formatting</li><li>indicate if you are dealing on your own orders</li></ul>";
-  // module.exports.container.appendChild(todo);
 
   module.exports.marketHistory = document.createElement("table");
   module.exports.marketHistory.style = "width: 100%;";
@@ -115,7 +97,6 @@ module.exports.init = function () {
   descriptionHeaderCell.className = "mat-header-cell cdk-column-description mat-column-description ng-star-inserted";
   header.appendChild(descriptionHeaderCell);
 
-  console.log("replacing  app history with new container");
   appHistory.parentNode.replaceChild(module.exports.container, appHistory);
 
   module.exports.loadNewerButton = document.createElement("button");
@@ -137,22 +118,6 @@ module.exports.init = function () {
     module.exports.fetchMarketHistoryPage(++module.exports.page);
   };
   module.exports.container.appendChild(module.exports.loadMoreButton);
-
-  // https://stackoverflow.com/questions/8939467/chrome-extension-to-read-http-response
-
-  // https://stackoverflow.com/questions/18534771/chrome-extension-how-to-get-http-response-body
-  // chrome.devtools.network.onRequestFinished.addListener(request => {
-  //     request.getContent((body) => {
-  //       if (request.request && request.request.url) {
-  //         if (request.request.url.includes('api/user/money-history')) {
-
-  //            //continue with custom code
-  //            var bodyObj = JSON.parse(body);//etc.
-  //            console.log(body);
-  //         }
-  // }
-  // });
-  // });
 };
 
 module.exports.fetchPlayer = function (id, history) {
@@ -232,7 +197,6 @@ module.exports.sortTable = function () {
 };
 
 module.exports.fetchMarketHistoryPage = function (page) {
-  console.log(`Fetching page ${page}`);
   module.ajaxGet("https://screeps.com/api/user/money-history?page=" + page, function (data, error) {
     /**
      * data
@@ -254,7 +218,6 @@ module.exports.fetchMarketHistoryPage = function (page) {
      *  ]
      *
      */
-    // console.log(data)
     if (!data.hasMore) {
       module.exports.loadMoreButton.disabled = true;
     }
@@ -276,14 +239,11 @@ module.exports.fetchMarketHistoryPage = function (page) {
       }
     }
     module.exports.sortTable();
-
-    // module.exports.update();
   });
 };
 
 module.exports.insertRow = function (history) {
   if (document.getElementById(history._id)) {
-    console.log(history._id, "found skipping");
     return;
   }
 
@@ -292,7 +252,6 @@ module.exports.insertRow = function (history) {
 };
 
 module.exports.generateHistoryHtmlRow = function (history) {
-  // console.log(history);
   const row = document.createElement("tr");
   row.id = history._id;
   row.className = "mat-row ng-star-inserted";
@@ -478,9 +437,7 @@ module.exports.playerBadge = function (playerName, badge) {
           </app-badge>`;
 };
 
-module.exports.update = function () {
-  console.log("update getting called");
-};
+module.exports.update = function () {};
 
 module.exports.nFormatter = function (num, digits = 2) {
   let convertFromNegative = 1;
@@ -513,7 +470,6 @@ module.exports.calcTransactionCost = function (shard, amount, roomName1, roomNam
   var distance = module.exports.calcRoomsDistance(shard, roomName1, roomName2, true);
 
   // TODO: export distance to render in table
-  console.log(`${shard} amount: ${amount} roomName1: ${roomName1} roomName2: ${roomName2} distance: ${distance}`);
   return Math.ceil(amount * (1 - Math.exp(-distance / 30)));
 };
 
@@ -536,11 +492,6 @@ module.exports.calcRoomsDistance = function (shard, room1, room2, continuous) {
   var dx = Math.abs(x2 - x1);
   var dy = Math.abs(y2 - y1);
   if (continuous) {
-    // WORLD_WIDTH and WORLD_HEIGHT constants are deprecated, please use Game.map.getWorldSize() instead
-    // const WORLD_WIDTH = 202;
-    // const WORLD_HEIGHT = 202;
-    // var width = WORLD_WIDTH;
-    // var height = WORLD_HEIGHT;
     var { width, height } = module.exports.shards[shard];
 
     dx = Math.min(width - dx, dx);

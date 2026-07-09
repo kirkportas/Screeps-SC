@@ -336,7 +336,7 @@ module.exports.fetchResources = function () {
 };
 
 module.exports.listenToConsole = function () {
-  var auth = JSON.parse(localStorage.getItem("auth"));
+  var auth = module.getScreepsAuth();
   var userid = JSON.parse(localStorage.getItem("users.code.activeWorld"))[0]._id;
   var host = "wss://screeps.com/socket/websocket";
 

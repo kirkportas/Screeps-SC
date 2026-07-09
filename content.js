@@ -1,3 +1,5 @@
+// CSP-fragile: injects module source via an inline <script>. Would break if
+// screeps.com adopts a strict script-src; future move to chrome.scripting.executeScript with world:"MAIN".
 function inject(obj){
     if (document.getElementById(obj.name)){
         console.log("injected twice");
@@ -25,7 +27,9 @@ function toString(obj){
             objStr += JSON.stringify(obj[member]);
         }
         else if (typeof obj[member] === 'string'){
-            objStr += '"' + obj[member] + '"';
+            // JSON.stringify yields a correctly-escaped JS string literal
+            // (handles embedded quotes, backslashes, newlines).
+            objStr += JSON.stringify(obj[member]);
         }
         else if (typeof obj[member] === 'object'){
             objStr += toString(obj[member]);

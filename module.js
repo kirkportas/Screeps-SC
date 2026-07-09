@@ -154,16 +154,23 @@ module.isScopeReady = function(scopeName, objectPath, mustExistPathArr){
     return rootValid;
 }
 
+module.getScreepsAuth = function(){
+    return JSON.parse(localStorage.getItem('auth'));
+}
+
+module.getScreepsAuthHeaders = function(){
+    var auth = module.getScreepsAuth();
+    return {
+        'X-Token' : auth,
+        'X-Username' : auth
+    };
+}
+
 module.ajaxCall = function(data, cb){
 
     // Set tokens if it's a request to @screeps
     if (data.url && data.url.startsWith("https://screeps.com/")){
-        var auth = JSON.parse(localStorage.getItem('auth'));
-        
-        data.headers = {
-            'X-Token' : auth,
-            'X-Username' : auth
-        }
+        data.headers = module.getScreepsAuthHeaders();
     }
 
     var request = $.ajax(data);
