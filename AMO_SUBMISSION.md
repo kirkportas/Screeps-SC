@@ -46,8 +46,9 @@ deals. `data_collection_permissions` is set to `none`.
 - host `screeps.com` — the application itself.
 - host `leagueofautomatednations.com` — public alliance/room data (above).
 
-The battle radar and a couple of market helpers are pinned to shard "shardX"; on
-other shards they simply do nothing.
+The battle radar and the market helpers follow whichever shard the user is
+viewing or owns rooms on; the shard "shardX" is only a fallback used when none
+can be resolved.
 
 ## Listing metadata
 
