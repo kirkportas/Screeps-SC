@@ -31,6 +31,12 @@ function toString(obj){
             // (handles embedded quotes, backslashes, newlines).
             objStr += JSON.stringify(obj[member]);
         }
+        else if (obj[member] === null){
+            // typeof null === 'object', so without this null would recurse into
+            // toString and serialize as an empty object {} (truthy) — breaking
+            // any module that uses a null default as a falsy sentinel.
+            objStr += 'null';
+        }
         else if (typeof obj[member] === 'object'){
             objStr += toString(obj[member]);
         }else{
