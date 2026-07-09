@@ -27,8 +27,11 @@ code being placed where it can reach the game's Angular scope — nothing fetche
 executed.
 
 **Third-party code.** The only bundled library is vendor/mousetrap.min.js
-(v1.6.5, unmodified, https://craig.is/killing/mice). The `$`, `angular`, and `_`
-globals the modules use belong to the screeps.com page itself and are not shipped.
+(v1.6.5, unmodified, https://craig.is/killing/mice), a small keyboard-shortcut
+library. The room.console.icons module uses it to let the user bind their own
+hotkeys to in-game console commands — a convenience while playing. The `$`,
+`angular`, and `_` globals the modules use belong to the screeps.com page itself
+and are not shipped.
 
 **Data.** Nothing is sent to the developer. The auth token is read from
 screeps.com's own localStorage and returned only to screeps.com's API (as
