@@ -59,10 +59,25 @@
                 max-height: 64px;
                 max-width: 64px;
             }
+            #perms{
+                display: none;
+                background: #fff3cd;
+                border-bottom: 1px solid #e0c97f;
+                padding: 12px 15px;
+                font-size: 90%;
+            }
+            #perms button{
+                margin-left: 10px;
+            }
         </style>
     </head>
 
     <body>
+
+        <div id="perms">
+            Screeps SC needs permission to access screeps.com before its modules can run.
+            <button id="grant">Enable access</button>
+        </div>
 
         <div id="modules">
         </div>
