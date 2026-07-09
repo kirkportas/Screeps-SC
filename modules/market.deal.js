@@ -13,10 +13,11 @@ module.exports.accountResources = ["cpuUnlock", "accessKey", "pixel"];
 
 // Which shard the deal expression is executed on. Account-level deals are global,
 // so any shard where your code actually runs works — but it MUST be a shard with
-// a live runtime, or the console expression is never evaluated. Pinned to shardX
-// (same primary shard the battle radar uses). Set it to "" to instead auto-detect
-// from the shards you own rooms on (see resolveShard).
-module.exports.dealShard = "shardX";
+// a live runtime, or the console expression is never evaluated. Left null so
+// resolveShard auto-detects a shard you own rooms on; set it to a shard name to
+// pin manually (that override wins over auto-detection). "shardX" remains only the
+// last-resort fallback in sendDeal when nothing else resolves.
+module.exports.dealShard = null;
 
 module.exports.init = function () {
   console.log("[market.deal] init");
@@ -108,7 +109,7 @@ module.exports.resolveShard = function () {
         );
       } else {
         console.warn(
-          "[market.deal] could not resolve your shard from /api/user/rooms; deals will fall back to shard0. " +
+          "[market.deal] could not resolve your shard from /api/user/rooms; deals will fall back to shardX. " +
             "Set module.exports.dealShard manually if that is wrong."
         );
       }

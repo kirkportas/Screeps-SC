@@ -16,10 +16,11 @@
 
 // Which shard the holdings expression is executed on when the URL carries no
 // shard (account-resource / plain market URLs). Must be a shard with a live
-// runtime or the console expression is never evaluated. Pinned to shardX (same
-// primary shard the battle radar / market.deal use). Set it to "" to instead
-// auto-detect from the shards you own rooms on (see resolveShard).
-module.exports.resourcesShard = "shardX";
+// runtime or the console expression is never evaluated. Left null so resolveShard
+// auto-detects a shard you own rooms on; set it to a shard name to pin manually
+// (that override wins over auto-detection). "shardX" remains only the last-resort
+// fallback when neither the URL nor resolveShard yields a shard.
+module.exports.resourcesShard = null;
 
 module.exports.init = function () {
   console.log("[market.resources] init");
@@ -155,7 +156,7 @@ module.exports.resolveShard = function () {
         );
       } else {
         console.warn(
-          "[market.resources] could not resolve your shard from /api/user/rooms; fetch will fall back to shard0. " +
+          "[market.resources] could not resolve your shard from /api/user/rooms; fetch will fall back to shardX. " +
             "Set module.exports.resourcesShard manually if that is wrong."
         );
       }
@@ -251,7 +252,7 @@ module.exports.boostInfo = {
 // navigates to the app2 resource page (a plain link — no AngularJS scope poking);
 // updateResourceAmount() fills the #sc-val-<resource> span.
 module.exports.getTabElement = function (resource) {
-  var shard = module.getCurrentShard() || module.exports.resourcesShard || "shard0";
+  var shard = module.getCurrentShard() || module.exports.resourcesShard || "shardX";
 
   var desc = module.exports.boostInfo[resource];
   var descHtml = desc
@@ -327,10 +328,11 @@ module.exports.fetchResources = function () {
           <use xlink:href="#sc-svg-loading">
         </svg>`);
 
-  // Prefer the shard embedded in a mineral market URL (#!/market/all/shardX/H);
-  // otherwise use the resolved main shard. Never silently fall back to shard0.
-  var shard = module.getCurrentShard() || module.exports.resourcesShard;
-  console.log("[market.resources] fetch sent (shard=" + (shard || "shard0") + ")");
+  // Prefer the shard embedded in a mineral market URL (#!/market/all/<shard>/H);
+  // otherwise the resolved owned shard, else the shardX fallback. Never silently
+  // fall back to shard0 (which sendConsoleCommand would otherwise default to).
+  var shard = module.getCurrentShard() || module.exports.resourcesShard || "shardX";
+  console.log("[market.resources] fetch sent (shard=" + shard + ")");
 
   module.sendConsoleCommand(command, undefined, shard);
 };

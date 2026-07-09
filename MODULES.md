@@ -52,13 +52,16 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
 
 - **File:** `modules/world.battle.radar.js` (largest module, ~1.3k lines)
 - **Trigger:** any page under `https://screeps.com/a/#!/`
-- **Needs:** LOAN host permission (shardX room data + alliances).
+- **Needs:** LOAN host permission (per-shard room data + alliances).
 - **What it does:** adds a radar button to the left menu controls. Opens a modal with
   two tabs: **Active Nukes** (defender/attacker, alliances, launch and landing rooms,
   landing countdown) and **Current PvP** hotspots.
-- **Caveats:** tracks **only shardX** — the shard is pinned via
-  `module.exports.radarShard` at the top of the module (change it there to watch a
-  different shard). Init logs `[battle.radar]` breadcrumbs to the page console.
+- **Caveats:** follows **the shard you are viewing** — it reads the shard from the
+  Room/Map URL (`module.getCurrentShard()`) each time the modal opens and fetches
+  that shard's LOAN room data on demand (cached per shard). When the URL carries no
+  shard it falls back to `module.exports.radarShard` (default `shardX`), which you
+  can set to pin a different fallback. Init logs `[battle.radar]` breadcrumbs to the
+  page console.
 - **Verify:** hard-refresh any screeps page; console shows the `[battle.radar]` trail
   ending in `button inserted: 1`; radar icon appears above "World" in the left menu.
 - **Status:** ✅ verified 2026-07-07 (Firefox). The button self-heals via a
@@ -113,9 +116,9 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   `module.exports.injectionAnchor`). It is **scoped to the All-orders view**
   (`#!/market/all…`) and is torn down (panel removed + socket closed) on My orders /
   History. The holdings console expression runs on the shard embedded in a mineral
-  market URL, else `module.exports.resourcesShard` (pinned to `shardX`, or
-  auto-detected from your rooms) — never a silent shard0 fallback. Logs
-  `[market.resources]` breadcrumbs to the page console.
+  market URL, else `module.exports.resourcesShard` (auto-detected from the shards
+  you own rooms on, or a manual pin), else `shardX` — never a silent shard0
+  fallback. Logs `[market.resources]` breadcrumbs to the page console.
 - **Verify:** open the Market section; a "My resources" overview panel appears above
   the order table and the amount spans populate with your storage/terminal totals.
 - **Status:** ✅ verified 2026-07-07 (ported to app2; panel anchored after
@@ -149,8 +152,9 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
 - **Verify:** open Market → `cpuUnlock` (or `accessKey` / `pixel`); each order row
   gets a green Deal button on the right. Click it, wait for the countdown, Confirm;
   the row flashes OK/error and the console shows the `[market.deal]` trail.
-- **Status:** ✅ verified 2026-07-07 — deals execute on shardX
-  (`module.exports.dealShard`) and the row flashes the result.
+- **Status:** ✅ verified 2026-07-07 — deals execute on the shard resolved from the
+  shards you own rooms on (`module.exports.dealShard`, auto-detected or manually
+  pinned; falls back to `shardX`) and the row flashes the result.
 
 ![Deal button on account-resource order rows](images/screeps-sc-market-deal-ui.png)
 ![Inline confirm form with anti-double-click countdown](images/screeps-sc-market-deal-confirm.png)
@@ -209,8 +213,9 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
 - Battle radar waits for `.left-controls` to render before inserting its button.
 - Modules disabled on the options page are now actually skipped (previously they
   were injected anyway, just without config).
-- Battle radar pinned to shardX only (`module.exports.radarShard`); the shard0–3
-  fetch chain was removed.
+- Battle radar follows the viewed shard (`module.getCurrentShard()`), fetching each
+  shard's LOAN room data on demand, with `module.exports.radarShard` (default
+  `shardX`) as the fallback when the URL has no shard.
 - Mousetrap vendored into `vendor/mousetrap.min.js` (was loaded from a third-party
   CDN at runtime); page-world modules can load vendored files via
   `module.extensionUrl` + `web_accessible_resources`.
