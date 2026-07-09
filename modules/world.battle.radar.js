@@ -1,89 +1,118 @@
-// The only shard the radar tracks; all others are ignored.
+// Fallback shard for the radar when the current URL carries no shard (e.g. the
+// plain world view). The radar normally follows the shard in the Room/Map URL via
+// module.getCurrentShard(); set this to a shard name to override that fallback.
 module.exports.radarShard = "shardX";
 
-module.exports.init = function () {
-  var shard = module.exports.radarShard;
+// Per-shard LOAN room-ownership cache, filled on demand by ensureShardData.
+module.exports.shards = {};
 
-  console.log("[battle.radar] init: fetching LOAN data for " + shard);
+// Which shard the radar should track right now. Follows the shard in the current
+// Room/Map URL; falls back to the radarShard override (default "shardX") only when
+// the URL carries no shard.
+module.exports.resolveShard = function () {
+  return module.getCurrentShard() || module.exports.radarShard || "shardX";
+};
+
+// Fetch (and cache) the LOAN room-ownership map for a shard on demand. The data is
+// per-shard, so opening the radar on a shard we haven't loaded fetches it then —
+// this is what lets the radar follow whichever shard you are viewing instead of a
+// single one loaded at init.
+module.exports.ensureShardData = function (shard, cb) {
+  if (module.exports.shards[shard]) {
+    cb();
+    return;
+  }
+  console.log("[battle.radar] fetching LOAN room data for " + shard);
   module.dispatchEvent(
     { event: "xhttp", url: "https://www.leagueofautomatednations.com/map/" + shard + "/rooms.js" },
     function (roomsResponse) {
       console.log("[battle.radar] " + shard + " rooms fetched, bytes:", (roomsResponse.data || "").length);
-      module.exports.shards = {};
-      module.exports.shards[shard] = { rooms: JSON.parse(roomsResponse.data) };
+      try {
+        module.exports.shards[shard] = { rooms: JSON.parse(roomsResponse.data) };
+      } catch (e) {
+        console.warn("[battle.radar] failed to parse room data for " + shard + ": " + e);
+        module.exports.shards[shard] = { rooms: {} };
+      }
+      cb();
+    }
+  );
+};
 
-      module.dispatchEvent(
-        { event: "xhttp", url: "https://www.leagueofautomatednations.com/alliances.js" },
-        function (response) {
-          module.alliances = JSON.parse(response.data);
+module.exports.init = function () {
+  // Alliance data is shard-independent, so fetch it once here; the per-shard room
+  // map is fetched lazily (ensureShardData) for whichever shard the radar opens on.
+  console.log("[battle.radar] init: fetching alliances");
+  module.dispatchEvent(
+    { event: "xhttp", url: "https://www.leagueofautomatednations.com/alliances.js" },
+    function (response) {
+      module.alliances = JSON.parse(response.data);
 
-          module.userToAlliance = {};
+      module.userToAlliance = {};
 
-          for (var alliance in module.alliances) {
-            var members = module.alliances[alliance].members;
-            for (var member in members) {
-              var memberName = members[member];
+      for (var alliance in module.alliances) {
+        var members = module.alliances[alliance].members;
+        for (var member in members) {
+          var memberName = members[member];
 
-              module.userToAlliance[memberName] = alliance;
-            }
-          }
-
-          console.log("[battle.radar] alliances fetched, bytes:", (response.data || "").length,
-            "- waiting for navbar scope");
-          module.getScopeData("navbar", "Top", [], function (Top) {
-            console.log("[battle.radar] navbar scope ready, arming button injector");
-            var radarSvg = module.exports.getRadarSvg();
-
-            // The Screeps Angular UI re-renders .left-controls on route changes
-            // (map <-> room <-> world), which evicts any button we injected, and
-            // .left-controls itself renders later than the navbar scope. A
-            // one-shot insert therefore races both and shows up only sometimes.
-            // Instead, re-assert the button whenever .left-controls exists but
-            // the button is gone.
-            function ensureButton() {
-              var controls = $(".left-controls");
-              if (controls.length === 0) return; // nav not rendered yet
-              if ($('a[title="Battle Radar"]').length > 0) return; // already there
-
-              var sideBar = $(`<a class="md-raised md-button ng-scope md-ink-ripple" title="Battle Radar">
-                                            ${radarSvg}
-                                    </a>`);
-              sideBar.click(function () {
-                Top.toggleMainNav();
-                module.exports.openModal();
-              });
-              controls.prepend(sideBar);
-              console.log("[battle.radar] button inserted:", $('a[title="Battle Radar"]').length);
-            }
-
-            ensureButton();
-
-            // Watch the DOM for the re-renders that evict the button and
-            // re-assert it. Mutation bursts (the game view renders constantly)
-            // are coalesced into one check per frame so ensureButton — which is
-            // just two cheap selector lookups — never runs in a tight loop.
-            if (module.exports.buttonObserver) {
-              module.exports.buttonObserver.disconnect();
-            }
-            var checkQueued = false;
-            module.exports.buttonObserver = new MutationObserver(function () {
-              if (checkQueued) return;
-              checkQueued = true;
-              requestAnimationFrame(function () {
-                checkQueued = false;
-                ensureButton();
-              });
-            });
-            module.exports.buttonObserver.observe(document.body, { childList: true, subtree: true });
-          });
+          module.userToAlliance[memberName] = alliance;
         }
-      );
+      }
+
+      console.log("[battle.radar] alliances fetched, bytes:", (response.data || "").length,
+        "- waiting for navbar scope");
+      module.getScopeData("navbar", "Top", [], function (Top) {
+        console.log("[battle.radar] navbar scope ready, arming button injector");
+        var radarSvg = module.exports.getRadarSvg();
+
+        // The Screeps Angular UI re-renders .left-controls on route changes
+        // (map <-> room <-> world), which evicts any button we injected, and
+        // .left-controls itself renders later than the navbar scope. A
+        // one-shot insert therefore races both and shows up only sometimes.
+        // Instead, re-assert the button whenever .left-controls exists but
+        // the button is gone.
+        function ensureButton() {
+          var controls = $(".left-controls");
+          if (controls.length === 0) return; // nav not rendered yet
+          if ($('a[title="Battle Radar"]').length > 0) return; // already there
+
+          var sideBar = $(`<a class="md-raised md-button ng-scope md-ink-ripple" title="Battle Radar">
+                                        ${radarSvg}
+                                </a>`);
+          sideBar.click(function () {
+            Top.toggleMainNav();
+            module.exports.openModal();
+          });
+          controls.prepend(sideBar);
+          console.log("[battle.radar] button inserted:", $('a[title="Battle Radar"]').length);
+        }
+
+        ensureButton();
+
+        // Watch the DOM for the re-renders that evict the button and
+        // re-assert it. Mutation bursts (the game view renders constantly)
+        // are coalesced into one check per frame so ensureButton — which is
+        // just two cheap selector lookups — never runs in a tight loop.
+        if (module.exports.buttonObserver) {
+          module.exports.buttonObserver.disconnect();
+        }
+        var checkQueued = false;
+        module.exports.buttonObserver = new MutationObserver(function () {
+          if (checkQueued) return;
+          checkQueued = true;
+          requestAnimationFrame(function () {
+            checkQueued = false;
+            ensureButton();
+          });
+        });
+        module.exports.buttonObserver.observe(document.body, { childList: true, subtree: true });
+      });
     }
   );
 };
 
 module.exports.update = function () {
-  // not needed as we dont switch url in battle radar popup.
+  // The radar re-resolves the viewed shard every time the modal is opened
+  // (see openModal), so no per-url work is needed here.
 };
 
 module.exports.openModal = function () {
@@ -178,10 +207,15 @@ module.exports.openModal = function () {
     module.exports.closeModal();
   });
 
-  var shard = module.exports.radarShard;
-  module.ajaxGet("https://screeps.com/api/game/time?shard=" + shard, function (data) {
-    module.exports.displayNukeTab(data.time, shard);
-    module.exports.displayPvPTab(data.time, shard);
+  // Follow whichever shard the user is currently viewing; load that shard's LOAN
+  // room data on demand before rendering the tabs.
+  var shard = module.exports.resolveShard();
+  console.log("[battle.radar] opening radar for shard " + shard);
+  module.exports.ensureShardData(shard, function () {
+    module.ajaxGet("https://screeps.com/api/game/time?shard=" + shard, function (data) {
+      module.exports.displayNukeTab(data.time, shard);
+      module.exports.displayPvPTab(data.time, shard);
+    });
   });
 
   $("#sc-modal-battle-ok").click(function () {
