@@ -20,7 +20,7 @@ module.exports.update = function () {
         if (ele) {
           var textElement = ele.getElementsByTagName("text")[0];
           if (textElement) {
-            textElement.innerHTML = obj.name;
+            textElement.textContent = obj.name;
           }
         }
       }

@@ -85,17 +85,44 @@ api.webRequest.onCompleted.addListener(function (details) {
     });
 }, { urls: ["*://screeps.com/*"] });
 
-api.runtime.onMessage.addListener(function (request, sender, sendResponse) {
-    if (request.action === "xhttp") {
-        const method = request.method ? request.method.toUpperCase() : "GET";
-        const options = { method: method };
+// The xhttp handler fetches with the extension's privileges, and the URL comes
+// from the page world (content.js forwards a page CustomEvent). Restrict it to
+// the two hosts the modules actually talk to, otherwise it is an open
+// cross-origin read proxy for anything running on the page.
+const XHTTP_ALLOWED_HOSTS = ["screeps.com", "leagueofautomatednations.com"];
 
-        if (method === "POST") {
-            options.headers = { "Content-Type": "application/x-www-form-urlencoded" };
-            options.body = request.data;
+function isAllowedXhttpUrl(rawUrl) {
+    let url;
+    try {
+        url = new URL(rawUrl);
+    } catch (e) {
+        return false;
+    }
+
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+        return false;
+    }
+
+    return XHTTP_ALLOWED_HOSTS.some(function (host) {
+        return url.hostname === host || url.hostname.endsWith("." + host);
+    });
+}
+
+api.runtime.onMessage.addListener(function (request, sender, sendResponse) {
+    // Only our own content scripts talk to the background; never another extension.
+    if (sender.id !== api.runtime.id) {
+        return;
+    }
+
+    if (request.action === "xhttp") {
+        if (!isAllowedXhttpUrl(request.url)) {
+            console.error("xhttp blocked for disallowed url: " + request.url);
+            sendResponse();
+            return;
         }
 
-        fetch(request.url, options)
+        // Content scripts only ever issue GETs through here.
+        fetch(request.url, { method: "GET" })
             .then(function (response) {
                 return response.text();
             })
