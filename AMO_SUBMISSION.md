@@ -56,8 +56,24 @@ can be resolved.
 - **Summary:** UI conveniences for the screeps.com game client. Not affiliated
   with Screeps.
 - **Categories:** Games / Other
-- **Description:** mention it is a fork of Stybbe and Geir's Screeps-SC, list the
-  modules, and state it is unofficial and unaffiliated with Screeps.
+- **Description:**
+
+**Screeps SC** adds UI conveniences to the **screeps.com** browser client — alliance map overlays, a battle radar, market helpers, and console shortcuts — rendered directly into the game's own pages. An actively maintained Manifest V3 fork of Stybbe & Geir's original Screeps-SC.
+
+**Modules**
+
+- **Alliance map overlay** - washes alliance territory across the world map and adds an "Alliance" line under room owners.
+- **Battle radar** - a left-menu radar with two tabs: active nukes (attacker/defender, launch & landing rooms, landing countdown) and current PvP hotspots, following the shard you're viewing.
+- **Market helpers** - money-history charts, a "my resources / open orders" overview, and one-click cpuUnlock / access-key / pixel deal shortcuts.
+- **Profile & leaderboard** - a GCL progress bar (with "points to next level") on any player's profile, plus leaderboard enhancements.
+- **Room extras** - creep name labels in the room view and bindable hotkey icons for your console commands.
+- **Bucket bar** - a CPU-bucket readout in the profile sysbar.
+
+Every module can be toggled and configured on the extension's options page.
+
+**Setup:** after installing, open the options page and click **Enable access** to grant the screeps.com host permission (Firefox withholds it on install), then reload screeps.com.
+
+Unofficial - not affiliated with or endorsed by Screeps. No data is collected; the extension sends nothing to the developer.
 - **License:** MIT (see LICENSE).
 - **Privacy policy:** This add-on does not collect, store, or transmit any
   personal data to the developer or any third party. It reads your screeps.com
