@@ -1,8 +1,8 @@
 # Submitting to addons.mozilla.org
 
-Build the package with `./build.sh` (produces `screeps-sc.zip` containing only the
-files the extension ships). Validate with `npx addons-linter@latest screeps-sc.zip`
-before uploading.
+Build the packages with `./build.sh` (produces `screeps-sc-firefox.zip` containing only the
+files the extension ships). Validate with `npx addons-linter@latest screeps-sc-firefox.zip`
+before uploading. `./build.sh` also emits `screeps-sc-chrome.zip` for the Chrome Web Store.
 
 ## Notes for the reviewer
 
