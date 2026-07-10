@@ -16,11 +16,11 @@
 
 // Which shard the holdings expression is executed on when the URL carries no
 // shard (account-resource / plain market URLs). Must be a shard with a live
-// runtime or the console expression is never evaluated. Left null so resolveShard
+// runtime or the console expression is never evaluated. Left "" so resolveShard
 // auto-detects a shard you own rooms on; set it to a shard name to pin manually
 // (that override wins over auto-detection). "shardX" remains only the last-resort
 // fallback when neither the URL nor resolveShard yields a shard.
-module.exports.resourcesShard = null;
+module.exports.resourcesShard = "";
 
 module.exports.init = function () {
   console.log("[market.resources] init");

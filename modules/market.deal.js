@@ -13,11 +13,11 @@ module.exports.accountResources = ["cpuUnlock", "accessKey", "pixel"];
 
 // Which shard the deal expression is executed on. Account-level deals are global,
 // so any shard where your code actually runs works — but it MUST be a shard with
-// a live runtime, or the console expression is never evaluated. Left null so
+// a live runtime, or the console expression is never evaluated. Left "" so
 // resolveShard auto-detects a shard you own rooms on; set it to a shard name to
 // pin manually (that override wins over auto-detection). "shardX" remains only the
 // last-resort fallback in sendDeal when nothing else resolves.
-module.exports.dealShard = null;
+module.exports.dealShard = "";
 
 module.exports.init = function () {
   console.log("[market.deal] init");
