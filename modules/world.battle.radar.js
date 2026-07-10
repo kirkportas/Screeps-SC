@@ -431,10 +431,10 @@ module.exports.displayPvPTab = function (gameTime, shard) {
                             <td class="orders-table__col--left">
                                 <a href='https://screeps.com/a/#!/room/${shard}/${roomInfo._id}'>${roomInfo._id}</a>
                             </td>
-                            <td>
-
+                            <td class="orders-table__col--left sc-pvp-attacker">
+                                <span class="sc-pvp-fetch" style="cursor:pointer;color:#8bf;text-decoration:underline;">click to fetch</span>
                             </td>
-                            <td>
+                            <td class="orders-table__col--left sc-pvp-attacker-alliance">
 
                             </td>
                             <td>
@@ -446,8 +446,38 @@ module.exports.displayPvPTab = function (gameTime, shard) {
                         </tr>`);
 
           row.find("td:eq(1) a:eq(0)").prepend(badgeDefender);
+          // Bind close-on-navigate to the existing profile/room links only; the
+          // attacker fetch trigger is a <span> so it is not caught here.
           row.find("a").click(function () {
             module.exports.closeModal();
+          });
+
+          // The pvp API does not name the attacker, and reading it from room
+          // history is laggy and costs a fetch per room — so resolve it lazily,
+          // only when the user clicks, one room at a time.
+          row.find(".sc-pvp-fetch").click(function () {
+            var trigger = $(this);
+            if (trigger.data("scBusy")) return;
+            trigger.data("scBusy", true).text("...");
+
+            module.exports.resolveAttacker(shard, roomInfo._id, roomInfo.lastPvpTime, function (attackerName) {
+              var atkCell = row.find(".sc-pvp-attacker");
+              if (!attackerName) {
+                atkCell.text("Unknown");
+                return;
+              }
+              module.exports.getBadge(attackerName, 16, 16, function (badgeAttacker) {
+                var link = $(`<a href='https://screeps.com/a/#!/profile/${attackerName}'>${attackerName}</a>`);
+                if (badgeAttacker) {
+                  link.prepend(badgeAttacker);
+                }
+                link.click(function () {
+                  module.exports.closeModal();
+                });
+                atkCell.empty().append(link);
+                row.find(".sc-pvp-attacker-alliance").html(module.exports.getAllianceHtml(attackerName));
+              });
+            });
           });
 
           $("#sc-tbody-battle-radar-pvp").append(row);
@@ -457,27 +487,80 @@ module.exports.displayPvPTab = function (gameTime, shard) {
   });
 };
 
-module.exports.getLatestHistory = function (room, startTime, cb, limit = 100) {
-  // TODO find a better way to get defender and attacker.
+// Fetch a room's recent history. History lives in per-100-tick segment files
+// (per shard) and lags live by ~1-2 segments, so start a segment before the pvp
+// tick and walk back a few. The response is application/octet-stream, so it
+// arrives as a string to JSON.parse. The old shardless URL now redirects away,
+// hence the shard in the path.
+module.exports.getLatestHistory = function (shard, room, pvpTime, cb, tries = 4) {
+  var start = Math.floor(pvpTime / 100) * 100 - 100;
 
-  // https://screeps.com/room-history/E62N22/15911540.json
-  // ticks[tick_id].type == 'controller'
-  // ticks[tick_id].type == 'creep'
-  // ticks[tick_id].user == '<GUID>'
-
-  if (limit <= 0) {
-    console.warn("failed to get history for room: " + room);
-    cb(undefined);
-  } else {
-    module.ajaxGet(`https://screeps.com/room-history/${room}/${startTime}.json`, function (data, status) {
+  function attempt(left, tick) {
+    if (left <= 0 || tick < 0) {
+      console.warn("[battle.radar] no history segment for " + room);
+      cb(undefined);
+      return;
+    }
+    module.ajaxGet(`https://screeps.com/room-history/${shard}/${room}/${tick}.json`, function (data) {
+      var hist = null;
       if (data) {
-        console.log("success: " + room + " after " + (100 - limit) + " tries");
-        cb(data);
+        try {
+          hist = typeof data === "string" ? JSON.parse(data) : data;
+        } catch (e) {
+          hist = null;
+        }
+      }
+      if (hist && hist.ticks) {
+        cb(hist);
       } else {
-        module.exports.getLatestHistory(room, startTime - 1, cb, limit - 1);
+        attempt(left - 1, tick - 100);
       }
     });
   }
+
+  attempt(tries, start);
+};
+
+// Best-effort attacker for a pvp room: the most active player in its recent
+// history who isn't the room owner (the controller's user). History identifies
+// players by id, so resolve that to a username. Returns null when history is
+// unavailable or holds no non-owner creeps (the fight already scrolled out).
+module.exports.resolveAttacker = function (shard, room, pvpTime, cb) {
+  module.exports.getLatestHistory(shard, room, pvpTime, function (hist) {
+    if (!hist || !hist.ticks) {
+      cb(null);
+      return;
+    }
+
+    var creepCount = {};
+    var defenderGuid = null;
+    for (var t in hist.ticks) {
+      var objs = hist.ticks[t];
+      for (var id in objs) {
+        var o = objs[id];
+        if (!o) continue;
+        if (o.type === "controller" && o.user) defenderGuid = o.user;
+        if (o.type === "creep" && o.user) creepCount[o.user] = (creepCount[o.user] || 0) + 1;
+      }
+    }
+
+    var attackerGuid = Object.keys(creepCount)
+      .filter(function (u) {
+        return u !== defenderGuid;
+      })
+      .sort(function (a, b) {
+        return creepCount[b] - creepCount[a];
+      })[0];
+
+    if (!attackerGuid) {
+      cb(null);
+      return;
+    }
+
+    module.ajaxGet("https://screeps.com/api/user/find?id=" + attackerGuid, function (result, err) {
+      cb(err || !result || !result.user ? null : result.user.username);
+    });
+  });
 };
 
 module.exports.closeModal = function () {
