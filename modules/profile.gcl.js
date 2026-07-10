@@ -47,21 +47,50 @@ module.exports.update = function () {
     var displayCurrentProg = parseFloat(Math.round(currentProg / 10000) / 100).toFixed(2);
     var displayNeededProg = Math.round(neededProg / 1000000);
 
-    var html = `<div id="extended-gcl">
-                        <div style="margin-top: 2px;padding: 4px 10px;background: #1b1b1b;position: relative;float:left;">
-                            <div style="width: ${displayPercentage}%; position: absolute;left: 0;top: 0;bottom: 0;background: #009688;opacity: 0.7;filter: alpha(opacity=70);"></div>
-                            <div style="z-index: 1;position: relative;color: white;font-size: 11px;">
-                                <span style="opacity: 0.5;filter: alpha(opacity=50);font-weight: 300;">Next level: </span>
-                                <strong style="font-weight: normal;">${displayCurrentProg}M / ${displayNeededProg}M</strong>
-                            </div>
-                        </div>
-                        <div style="color: white;font-size: 11px;float:left;padding: 5px 0 0 5px;"> ~ ${hours}h until level</div>
-                    </div>`;
+    // Build the progress bar with the DOM API rather than an interpolated HTML
+    // string. The AMO linter flags dynamic HTML sinks (UNSAFE_VAR_ASSIGNMENT);
+    // constructing nodes and setting text via textContent avoids that while
+    // producing the same rendered markup.
+    var extendedGcl = document.createElement("div");
+    extendedGcl.id = "extended-gcl";
+
+    var bar = document.createElement("div");
+    bar.setAttribute("style", "margin-top: 2px;padding: 4px 10px;background: #1b1b1b;position: relative;float:left;");
+
+    var fill = document.createElement("div");
+    fill.setAttribute(
+      "style",
+      "width: " +
+        displayPercentage +
+        "%; position: absolute;left: 0;top: 0;bottom: 0;background: #009688;opacity: 0.7;filter: alpha(opacity=70);"
+    );
+    bar.appendChild(fill);
+
+    var barText = document.createElement("div");
+    barText.setAttribute("style", "z-index: 1;position: relative;color: white;font-size: 11px;");
+
+    var nextLevel = document.createElement("span");
+    nextLevel.setAttribute("style", "opacity: 0.5;filter: alpha(opacity=50);font-weight: 300;");
+    nextLevel.textContent = "Next level: ";
+    barText.appendChild(nextLevel);
+
+    var progress = document.createElement("strong");
+    progress.setAttribute("style", "font-weight: normal;");
+    progress.textContent = displayCurrentProg + "M / " + displayNeededProg + "M";
+    barText.appendChild(progress);
+
+    bar.appendChild(barText);
+    extendedGcl.appendChild(bar);
+
+    var untilLevel = document.createElement("div");
+    untilLevel.setAttribute("style", "color: white;font-size: 11px;float:left;padding: 5px 0 0 5px;");
+    untilLevel.textContent = " ~ " + hours + "h until level";
+    extendedGcl.appendChild(untilLevel);
 
     if (document.getElementById("extended-gcl")) {
       $("#extended-gcl").remove();
     }
 
-    profileElement.insertAdjacentHTML("beforeend", html);
+    profileElement.appendChild(extendedGcl);
   });
 };

@@ -36,13 +36,15 @@ module.exports.init = function () {
   });
 
   var style = document.createElement("style");
-  style.innerHTML = ".mat-row:nth-of-type(2n+1) { background-color: rgba(255, 255, 255, 0.02); }";
-  style.innerHTML +=
+  // A <style> element's CSS is plain text; set it via textContent instead of
+  // innerHTML so the AMO linter does not flag an HTML sink.
+  style.textContent = ".mat-row:nth-of-type(2n+1) { background-color: rgba(255, 255, 255, 0.02); }";
+  style.textContent +=
     ".loadButton {place-items: center;margin: 0 20px;border: none;background: transparent;color: #4A5FD2;font-size: 12px;font-weight: 600;line-height: 26px;text-transform: uppercase;}";
-  style.innerHTML += "._success {color: #80D47B;}";
-  style.innerHTML += "._fail {color: #D2554A;}";
-  style.innerHTML += "._number {text-align:right;}";
-  style.innerHTML +=
+  style.textContent += "._success {color: #80D47B;}";
+  style.textContent += "._fail {color: #D2554A;}";
+  style.textContent += "._number {text-align:right;}";
+  style.textContent +=
     ".type {display:inline-block; vertical-align: middle; width: 25px;min-height: 37px;text-align: center;background-repeat: no-repeat;}";
 
   document.head.appendChild(style);
@@ -68,32 +70,32 @@ module.exports.init = function () {
   header.className = "mat-header-row ng-star-inserted";
   header.style = "position:stricky;";
   const dateHeaderCell = document.createElement("td");
-  dateHeaderCell.innerHTML = "Date";
+  dateHeaderCell.textContent = "Date";
   dateHeaderCell.className = "mat-header-cell cdk-column-date mat-column-date ng-star-inserted";
   header.appendChild(dateHeaderCell);
 
   const shardHeaderCell = document.createElement("td");
-  shardHeaderCell.innerHTML = "Shard";
+  shardHeaderCell.textContent = "Shard";
   shardHeaderCell.className = "mat-header-cell cdk-column-shard mat-column-shard ng-star-inserted";
   header.appendChild(shardHeaderCell);
 
   const tickHeaderCell = document.createElement("td");
-  tickHeaderCell.innerHTML = "Tick";
+  tickHeaderCell.textContent = "Tick";
   tickHeaderCell.className = "_number mat-header-cell cdk-column-tick mat-column-tick ng-star-inserted";
   header.appendChild(tickHeaderCell);
 
   const changeHeaderCell = document.createElement("td");
-  changeHeaderCell.innerHTML = "Credit Change";
+  changeHeaderCell.textContent = "Credit Change";
   changeHeaderCell.className = "_number mat-header-cell cdk-column-change mat-column-change";
   header.appendChild(changeHeaderCell);
 
   const resourceHeaderCell = document.createElement("td");
-  resourceHeaderCell.innerHTML = "Resource Change";
+  resourceHeaderCell.textContent = "Resource Change";
   resourceHeaderCell.className = "_number mat-header-cell cdk-column-change";
   header.appendChild(resourceHeaderCell);
 
   const descriptionHeaderCell = document.createElement("td");
-  descriptionHeaderCell.innerHTML = "Description";
+  descriptionHeaderCell.textContent = "Description";
   descriptionHeaderCell.className = "mat-header-cell cdk-column-description mat-column-description ng-star-inserted";
   header.appendChild(descriptionHeaderCell);
 
@@ -275,9 +277,11 @@ module.exports.generateHistoryHtmlRow = function (history) {
     history.change > 0 ? "_success" : "_fail"
   }`;
   row.appendChild(changeCell);
-  changeCell.innerHTML =
-    module.exports.nFormatter(history.change) +
-    '<div style="margin-right:0px !important" class="type resource-credits"></div>';
+  changeCell.textContent = module.exports.nFormatter(history.change);
+  var creditsIcon = document.createElement("div");
+  creditsIcon.setAttribute("style", "margin-right:0px !important");
+  creditsIcon.className = "type resource-credits";
+  changeCell.appendChild(creditsIcon);
 
   const resourceCell = document.createElement("td");
   resourceCell.className = `_number mat-cell cdk-column-change mat-column-change ${
@@ -291,17 +295,22 @@ module.exports.generateHistoryHtmlRow = function (history) {
   row.appendChild(descriptionCell);
 
   const date = new Date(history.date);
-  dateCell.innerHTML = `${date.getDate().toString().padStart(2, "0")}-${(date.getMonth() + 1)
+  dateCell.textContent = `${date.getDate().toString().padStart(2, "0")}-${(date.getMonth() + 1)
     .toString()
     .padStart(2, "0")}-${date.getFullYear() + 1} ${date.getHours().toString().padStart(2, "0")}:${date
     .getMinutes()
     .toString()
     .padStart(2, "0")}`;
-  shardCell.innerHTML = history.shard;
-  tickCell.innerHTML = history.tick;
+  shardCell.textContent = history.shard;
+  tickCell.textContent = history.tick;
 
   var shard = history.shard || "shard0";
 
+  // The description/resource cells used to be built as interpolated HTML strings
+  // assigned to innerHTML, which the AMO linter flags as UNSAFE_VAR_ASSIGNMENT.
+  // They are now assembled from DOM nodes (see the node helpers below): text is
+  // set with textContent and nodes are appended in the same order, producing the
+  // same rendered markup without an HTML sink.
   try {
     if (history.type == "market.fee") {
       /*
@@ -315,35 +324,45 @@ module.exports.generateHistoryHtmlRow = function (history) {
        */
       if (history.market.extendOrder) {
         var market = history.market.extendOrder;
-        var infoCircle = '<div class="fa fa-question-circle" title=\'' + JSON.stringify(market) + "'></div>";
 
-        descriptionCell.innerHTML = `Extend ${module.exports.nFormatter(market.addAmount)} ${infoCircle}`;
+        descriptionCell.textContent = `Extend ${module.exports.nFormatter(market.addAmount)} `;
+        descriptionCell.appendChild(module.exports.infoCircleNode(market));
       } else if (history.market.changeOrderPrice) {
         var market = history.market.changeOrderPrice;
-        var infoCircle = '<div class="fa fa-question-circle" title=\'' + JSON.stringify(market) + "'></div>";
         var priceChange = Math.abs(market.newPrice - market.oldPrice);
         var priceDigits = priceChange < 0.01 ? 3 : 2;
 
-        descriptionCell.innerHTML = `Change Price ${module.exports.nFormatter(
+        descriptionCell.textContent = `Change Price ${module.exports.nFormatter(
           market.oldPrice,
           priceDigits
-        )} -> ${module.exports.nFormatter(market.newPrice, priceDigits)} ${infoCircle}`;
+        )} -> ${module.exports.nFormatter(market.newPrice, priceDigits)} `;
+        descriptionCell.appendChild(module.exports.infoCircleNode(market));
       } else {
         var market = history.market.order;
         var type = market.resourceType;
         var roomName = market.roomName;
-        var roomLink = `<a href="#!/room/${shard}/${roomName}">${roomName}</a>`;
-        var infoCircle = '<div class="fa fa-question-circle" title=\'' + JSON.stringify(market) + "'></div>";
-        var resourceIcon = module.exports.resourceImageLink(shard, type);
-        resourceCell.innerHTML = resourceIcon;
+        var feeResourceIcon = module.exports.resourceImageLink(shard, type);
+        if (feeResourceIcon) {
+          resourceCell.appendChild(feeResourceIcon);
+        }
 
         const amount = market.remainingAmount
           ? `${module.exports.nFormatter(market.remainingAmount)} remaining`
           : `${module.exports.nFormatter(market.totalAmount)} total`;
 
-        descriptionCell.innerHTML = `${roomLink} Market fee (${
-          market.type
-        }) ${amount} ${resourceIcon} (${module.exports.nFormatter(market.price)}) ${infoCircle}`;
+        module.exports.appendChildren(descriptionCell, [
+          module.exports.roomLinkNode(shard, roomName),
+          " Market fee (",
+          market.type,
+          ") ",
+          amount,
+          " ",
+          module.exports.resourceImageLink(shard, type),
+          " (",
+          module.exports.nFormatter(market.price),
+          ") ",
+          module.exports.infoCircleNode(market)
+        ]);
       }
     } else if (history.type == "market.buy" || history.type == "market.sell") {
       var market = history.market;
@@ -360,11 +379,6 @@ module.exports.generateHistoryHtmlRow = function (history) {
 
       var targetRoomIsMine = false;
 
-      // market-resource--battery has -10px important margin, we need to override that
-      var resourceIcon = module.exports.resourceImageLink(shard, type);
-
-      var resourceEnergy = module.exports.resourceImageLink(shard, "energy");
-
       if (module.exports.shards[shard] && module.exports.shards[shard].rooms.includes(targetRoomName)) {
         let temp = roomName;
         roomName = targetRoomName;
@@ -372,18 +386,15 @@ module.exports.generateHistoryHtmlRow = function (history) {
         targetRoomIsMine = true;
       }
 
-      var roomLink = `<a href="#!/room/${shard}/${roomName}">${roomName}</a>`;
-      var targetRoomLink = `<a href="#!/room/${shard}/${targetRoomName}">${targetRoomName}</a>`;
-      var infoCircle = '<div class="fa fa-question-circle" title=\'' + JSON.stringify(market) + "'></div>";
-      var transactionCostHtml = `(<span style="color:#ff8f8f;margin-right:-12px">-${module.exports.nFormatter(
-        transactionCost
-      )} ${resourceEnergy}</span>)`;
-
       const amount = module.exports.nFormatter(market.amount);
       var priceDigits = market.price < 0.01 ? 3 : 2;
       const price = module.exports.nFormatter(market.price, priceDigits);
 
-      resourceCell.innerHTML = (history.type == "market.sell" ? "-" : "") + amount + resourceIcon;
+      module.exports.appendChildren(resourceCell, [
+        history.type == "market.sell" ? "-" : "",
+        amount,
+        module.exports.resourceImageLink(shard, type)
+      ]);
 
       const soldOrBought = history.type == "market.buy" ? "bought" : "sold";
 
@@ -406,35 +417,148 @@ module.exports.generateHistoryHtmlRow = function (history) {
         : "";
 
       if (accountResource) {
-        descriptionCell.innerHTML = `Account: ${soldOrBought} ${amount}${resourceIcon} (${price}) ${infoCircle}`;
+        module.exports.appendChildren(descriptionCell, [
+          "Account: ",
+          soldOrBought,
+          " ",
+          amount,
+          module.exports.resourceImageLink(shard, type),
+          " (",
+          price,
+          ") ",
+          module.exports.infoCircleNode(market)
+        ]);
       } else if (dealerIsMe) {
-        descriptionCell.innerHTML = `${ownerPlayerIcon} at ${targetRoomLink} ${amount}${resourceIcon} (${price}) Dealer ${dealerPlayerIcon} ${soldOrBought} from ${roomLink} ${transactionCostHtml} ${infoCircle}`;
+        module.exports.appendChildren(descriptionCell, [
+          ownerPlayerIcon,
+          " at ",
+          module.exports.roomLinkNode(shard, targetRoomName),
+          " ",
+          amount,
+          module.exports.resourceImageLink(shard, type),
+          " (",
+          price,
+          ") Dealer ",
+          dealerPlayerIcon,
+          " ",
+          soldOrBought,
+          " from ",
+          module.exports.roomLinkNode(shard, roomName),
+          " ",
+          module.exports.transactionCostNode(shard, transactionCost),
+          " ",
+          module.exports.infoCircleNode(market)
+        ]);
       } else {
-        descriptionCell.innerHTML = `${ownerPlayerIcon} at ${roomLink} ${soldOrBought} ${amount}${resourceIcon} (${price}) Dealer ${dealerPlayerIcon} at ${targetRoomLink} ${infoCircle}`;
+        module.exports.appendChildren(descriptionCell, [
+          ownerPlayerIcon,
+          " at ",
+          module.exports.roomLinkNode(shard, roomName),
+          " ",
+          soldOrBought,
+          " ",
+          amount,
+          module.exports.resourceImageLink(shard, type),
+          " (",
+          price,
+          ") Dealer ",
+          dealerPlayerIcon,
+          " at ",
+          module.exports.roomLinkNode(shard, targetRoomName),
+          " ",
+          module.exports.infoCircleNode(market)
+        ]);
       }
     }
   } catch (error) {
-    var infoCircle = '<div class="fa fa-question-circle" title=\'' + JSON.stringify(history) + "'></div>";
     console.error(error);
-    descriptionCell.innerHTML = `Error: ${error.message} ${infoCircle}`;
+    // Match the old innerHTML-replace semantics: clear any partial content first.
+    descriptionCell.replaceChildren();
+    module.exports.appendChildren(descriptionCell, [
+      "Error: ",
+      error.message,
+      " ",
+      module.exports.infoCircleNode(history)
+    ]);
   }
   return row;
 };
+
+// Append a mix of strings/numbers and DOM nodes to `parent`, in order. Strings
+// and numbers become text nodes; empty/absent entries are skipped (matching how
+// an interpolated "" or a null icon contributed nothing to the old HTML string).
+module.exports.appendChildren = function (parent, children) {
+  children.forEach(function (child) {
+    if (child === null || child === undefined || child === "") {
+      return;
+    }
+    if (typeof child === "string" || typeof child === "number") {
+      parent.appendChild(document.createTextNode(String(child)));
+    } else {
+      parent.appendChild(child);
+    }
+  });
+};
+
+// <div class="fa fa-question-circle" title='{json}'></div>
+module.exports.infoCircleNode = function (data) {
+  var infoCircle = document.createElement("div");
+  infoCircle.className = "fa fa-question-circle";
+  infoCircle.setAttribute("title", JSON.stringify(data));
+  return infoCircle;
+};
+
+// <a href="#!/room/{shard}/{roomName}">{roomName}</a>
+module.exports.roomLinkNode = function (shard, roomName) {
+  var link = document.createElement("a");
+  link.setAttribute("href", "#!/room/" + shard + "/" + roomName);
+  link.textContent = roomName;
+  return link;
+};
+
+// (<span style="...">-{cost} {energyIcon}</span>)
+module.exports.transactionCostNode = function (shard, transactionCost) {
+  var fragment = document.createDocumentFragment();
+  fragment.appendChild(document.createTextNode("("));
+  var span = document.createElement("span");
+  span.setAttribute("style", "color:#ff8f8f;margin-right:-12px");
+  span.appendChild(document.createTextNode("-" + module.exports.nFormatter(transactionCost) + " "));
+  var energyIcon = module.exports.resourceImageLink(shard, "energy");
+  if (energyIcon) {
+    span.appendChild(energyIcon);
+  }
+  fragment.appendChild(span);
+  fragment.appendChild(document.createTextNode(")"));
+  return fragment;
+};
+
 module.exports.resourceImageLink = function (shard, type) {
   // market-resource--battery has -10px important margin, we need to override that
-  return type
-    ? `<a href="#!/market/all/${shard}/${type}" title="${type}">
-                    <div style=\"margin-right:0px !important\" class=\"type market-resource--${type}\"></div>
-                  </a>`
-    : "";
+  if (!type) {
+    return null;
+  }
+  var link = document.createElement("a");
+  link.setAttribute("href", "#!/market/all/" + shard + "/" + type);
+  link.setAttribute("title", type);
+  var icon = document.createElement("div");
+  icon.setAttribute("style", "margin-right:0px !important");
+  icon.className = "type market-resource--" + type;
+  link.appendChild(icon);
+  return link;
 };
 
 module.exports.playerBadge = function (playerName, badge) {
-  return `<app-badge title="${playerName}" >
-            <a href="#!/profile/${playerName}">
-              <img src=${badge} width="16" height="16">
-            </a>
-          </app-badge>`;
+  var appBadge = document.createElement("app-badge");
+  appBadge.setAttribute("title", playerName);
+  var link = document.createElement("a");
+  link.setAttribute("href", "#!/profile/" + playerName);
+  var img = document.createElement("img");
+  img.setAttribute("src", badge);
+  img.setAttribute("width", "16");
+  img.setAttribute("height", "16");
+  link.appendChild(img);
+  appBadge.appendChild(link);
+  return appBadge;
 };
 
 module.exports.update = function () {};
