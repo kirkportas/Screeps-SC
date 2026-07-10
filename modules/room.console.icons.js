@@ -231,7 +231,7 @@ module.exports.openModal = function () {
                                     </div>
                                     <div class="col-xs-8">
                                         <input id="sc-modal-icon-input" name="icon" placeholder="fa-sticky-note">
-                                        <a target="_blank" href="http://web.archive.org/web/20150822024502/http://fontawesome.io/icons" style="cursor: pointer;position: absolute;margin: 5px 0 0 10px;" tabindex="-1" title="See all icons">
+                                        <a target="_blank" href="https://web.archive.org/web/20150822024502/http://fontawesome.io/icons" style="cursor: pointer;position: absolute;margin: 5px 0 0 10px;" tabindex="-1" title="See all icons">
                                             <i class="fa fa-question-circle" aria-hidden="true"></i>
                                         </a>
                                     </div>
