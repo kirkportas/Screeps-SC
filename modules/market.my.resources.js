@@ -397,12 +397,13 @@ module.exports.closeSocket = function () {
 };
 
 // The console websocket HTML-escapes log text (e.g. " -> &quot;, & -> &amp;).
-// Decode it back to raw JSON before parsing. A detached textarea handles every
-// entity and never executes scripts.
+// Decode it back to raw JSON before parsing. Parsing the string with DOMParser
+// (text/html) decodes every entity and never executes scripts, and it avoids the
+// innerHTML sink the AMO linter flags as UNSAFE_VAR_ASSIGNMENT. The input is
+// fully HTML-escaped JSON, so it contains no live markup - only entities to decode.
 module.exports.htmlUnescape = function (s) {
-  var t = document.createElement("textarea");
-  t.innerHTML = s;
-  return t.value;
+  var doc = new DOMParser().parseFromString(s, "text/html");
+  return doc.documentElement.textContent;
 };
 
 module.exports.getLoadingSVG = function () {

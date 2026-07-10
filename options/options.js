@@ -74,15 +74,20 @@ function addModuleOption(module){
     var div = document.createElement("div");
 
     var name = module.path.replace("modules/", "").replace(".js", "");
-    var imgUrl = ""; 
-    var content = "";
-    var enableChecked = 'checked="checked"';
+    var imgUrl = "";
+    var enableChecked = true;
     var sync = document.SCsettings.sync[name];
 
+    // The module block used to be assembled as an interpolated innerHTML string,
+    // which the AMO linter flags as UNSAFE_VAR_ASSIGNMENT. Build the same markup
+    // with the DOM API instead: element text goes through textContent and never
+    // through an HTML sink, so no config value can inject markup.
+    var moduleContent = document.createElement("div");
+    moduleContent.className = "module-content";
 
     if (sync){
         if (!sync.enabled){
-            enableChecked = "";
+            enableChecked = false;
         }
     }
 
@@ -91,8 +96,8 @@ function addModuleOption(module){
 
         if (module.options.config){
             module.options.config.forEach(function(config){
-                var htmlLeft = "";
-                var htmlRight = "";
+                var leftNodes = [];
+                var rightNodes = [];
                 var syncConfig;
 
                 // get saved value from chrome sync
@@ -102,21 +107,29 @@ function addModuleOption(module){
 
                 switch(config.type) {
                     case "select":{
-                        var options = "";
                         var defaultValue = syncConfig || config.defaultValue || config.options[0];
 
-                        for(var i = 0; i < config.options.length; i++){
-                            if (defaultValue === config.options[i]){
-                                options += `<option selected="selected">${config.options[i]}</option>`
-                            }else{
-                                options += `<option>${config.options[i]}</option>`
-                            }
-                            
-                        }
+                        var label = document.createElement("label");
+                        label.setAttribute("style", "font-weight: bold;text-transform: capitalize;");
+                        label.textContent = config.name;
+                        leftNodes.push(label);
 
-                        htmlLeft += `<label style="font-weight: bold;text-transform: capitalize;">${config.name}</label>`;
-                        htmlLeft += `<select id="${config.name}">${options}</select>`;
-                        htmlRight += `<span style="font-style: italic;">${config.description}</span>`;
+                        var select = document.createElement("select");
+                        select.id = config.name;
+                        for(var i = 0; i < config.options.length; i++){
+                            var option = document.createElement("option");
+                            option.textContent = config.options[i];
+                            if (defaultValue === config.options[i]){
+                                option.setAttribute("selected", "selected");
+                            }
+                            select.appendChild(option);
+                        }
+                        leftNodes.push(select);
+
+                        var description = document.createElement("span");
+                        description.setAttribute("style", "font-style: italic;");
+                        description.textContent = config.description;
+                        rightNodes.push(description);
 
                         break;
                     }
@@ -124,31 +137,56 @@ function addModuleOption(module){
                         console.error("Config type: " + config.type + " is not implemented in addModuleOption.");
                 }
 
-                content += `<div style="display: inline-block;width: 90%;padding-bottom:10px;">
-                                <div style="width: 40%;float: left;height: 100%;">${htmlLeft}</div>
-                                <div style="padding-top: 5px;">${htmlRight}</div>
-                            </div>`;
+                var row = document.createElement("div");
+                row.setAttribute("style", "display: inline-block;width: 90%;padding-bottom:10px;");
+
+                var leftCol = document.createElement("div");
+                leftCol.setAttribute("style", "width: 40%;float: left;height: 100%;");
+                leftNodes.forEach(function(node){ leftCol.appendChild(node); });
+                row.appendChild(leftCol);
+
+                var rightCol = document.createElement("div");
+                rightCol.setAttribute("style", "padding-top: 5px;");
+                rightNodes.forEach(function(node){ rightCol.appendChild(node); });
+                row.appendChild(rightCol);
+
+                moduleContent.appendChild(row);
             });
         }
     }
 
     div.className ="module-block"
     div.id = name;
-    
-    div.innerHTML = `
-    <h3>
-        ${name} 
-        <label class='enable-label'>
-            <input class='checkbox-enabled' type="checkbox" ${enableChecked}>
-            <span class='checkbox-text'>Enabled</span>
-        </label>
-    </h3>
-    <div class="module-image">
-        <img src="${imgUrl}"/>
-    </div>
-    <div class="module-content">
-        ${content}
-    </div>`;
+
+    var heading = document.createElement("h3");
+    heading.appendChild(document.createTextNode(name + " "));
+
+    var enableLabel = document.createElement("label");
+    enableLabel.className = "enable-label";
+
+    var checkbox = document.createElement("input");
+    checkbox.className = "checkbox-enabled";
+    checkbox.type = "checkbox";
+    checkbox.checked = enableChecked;
+    enableLabel.appendChild(checkbox);
+
+    var checkboxText = document.createElement("span");
+    checkboxText.className = "checkbox-text";
+    checkboxText.textContent = "Enabled";
+    enableLabel.appendChild(checkboxText);
+
+    heading.appendChild(enableLabel);
+    div.appendChild(heading);
+
+    var moduleImage = document.createElement("div");
+    moduleImage.className = "module-image";
+    var img = document.createElement("img");
+    img.setAttribute("src", imgUrl);
+    moduleImage.appendChild(img);
+    div.appendChild(moduleImage);
+
+    div.appendChild(moduleContent);
+
     document.getElementById('modules').appendChild(div);
 
 }

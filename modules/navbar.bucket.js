@@ -35,8 +35,13 @@ module.exports.animateLoading = function () {
     module.exports.animateLoadingInterval = setInterval(function () {
       var val = document.getElementById("bucket_value");
 
-      if (val.innerHTML.indexOf("...") > -1) val.innerHTML = "&nbsp;&nbsp;&nbsp;";
-      else val.innerHTML = val.innerHTML.replace("&nbsp;", ".");
+      // Drive the "..." loading animation through textContent instead of innerHTML
+      // (which the AMO linter flags as UNSAFE_VAR_ASSIGNMENT). Use the literal
+      // non-breaking space character in place of the &nbsp; entity so the rendered
+      // output and the cycling logic stay identical.
+      var nbsp = "\u00A0";
+      if (val.textContent.indexOf("...") > -1) val.textContent = nbsp + nbsp + nbsp;
+      else val.textContent = val.textContent.replace(nbsp, ".");
     }, 250);
   }
 };
