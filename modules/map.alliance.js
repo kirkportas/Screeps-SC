@@ -1,3 +1,9 @@
+// Each modules/*.js is loaded into the page world as its own extension-origin script
+// (see module.js). The IIFE keeps `module` private to this file so modules sharing a page
+// do not overwrite each other; ScreepsSC.begin/end hand out the instance and start it.
+(function () {
+var module = ScreepsSC.begin(document.currentScript);
+
 module.exports.colors = [ 
         "#000000", "#FEFFE6", "#FFFF00", "#006FA6", "#FF34FF", "#008941", "#FF4A46", "#A30059",
         "#FFDBE5", "#7A4900", "#0000A6", "#63FFAC", "#B79762", "#004D43", "#8FB0FF", "#997D87",
@@ -327,3 +333,6 @@ module.exports.hexToRgb = function (hex) {
         b: parseInt(result[3], 16)
     } : null;
 }
+
+ScreepsSC.end(module);
+})();

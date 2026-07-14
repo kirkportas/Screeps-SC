@@ -189,30 +189,14 @@ async function executeModule(tabId, info, config, tries = 15) {
     injectQueue.push(info.path);
 
     try {
-        // MV3 forbids injecting code strings, so the module name/config are
-        // seeded via an injected function; module.js and the module file then
-        // read the resulting `module` global from the shared isolated world.
+        // Only the isolated-world relay is injected here. It guards itself against
+        // double-init, then loads module.js and the module file into the page world
+        // as extension-origin <script src> tags once we ask it to (see content.js:
+        // the page's CSP blocks inline scripts in Chrome but allows our origin).
         await api.scripting.executeScript({
             target: { tabId: tabId },
-            func: function (name, config) {
-                window.module = { name: name, config: config };
-            },
-            args: [info.path, config === undefined ? null : config]
+            files: ["content.js"]
         });
-
-        // Firefox rejects when an injected file's completion value is not
-        // structured-clonable (e.g. a file ending in a function assignment),
-        // even though the script executed fine; Chrome just nulls the result.
-        try {
-            await api.scripting.executeScript({
-                target: { tabId: tabId },
-                files: ["module.js", "content.js", info.path]
-            });
-        } catch (e) {
-            if (!String(e).includes("non-structured-clonable")) {
-                throw e;
-            }
-        }
 
         const port = api.tabs.connect(tabId, { name: info.path });
 
@@ -226,7 +210,11 @@ async function executeModule(tabId, info, config, tries = 15) {
             delete activeTabPorts[tabId][info.path];
         });
 
-        port.postMessage({ event: "inject", module: info.path });
+        port.postMessage({
+            event: "inject",
+            module: info.path,
+            config: config === undefined ? null : config
+        });
 
         activeTabPorts[tabId][info.path].port = port;
     } catch (e) {

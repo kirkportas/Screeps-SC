@@ -1,3 +1,9 @@
+// Each modules/*.js is loaded into the page world as its own extension-origin script
+// (see module.js). The IIFE keeps `module` private to this file so modules sharing a page
+// do not overwrite each other; ScreepsSC.begin/end hand out the instance and start it.
+(function () {
+var module = ScreepsSC.begin(document.currentScript);
+
 /**
  * Renders bucket info in expanded profile navbar
  */
@@ -110,3 +116,6 @@ module.exports.closeSocket = function () {
     module.exports.socket = undefined;
   }
 };
+
+ScreepsSC.end(module);
+})();

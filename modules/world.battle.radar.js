@@ -1,3 +1,9 @@
+// Each modules/*.js is loaded into the page world as its own extension-origin script
+// (see module.js). The IIFE keeps `module` private to this file so modules sharing a page
+// do not overwrite each other; ScreepsSC.begin/end hand out the instance and start it.
+(function () {
+var module = ScreepsSC.begin(document.currentScript);
+
 // Fallback shard for the radar when the current URL carries no shard (e.g. the
 // plain world view). The radar normally follows the shard in the Room/Map URL via
 // module.getCurrentShard(); set this to a shard name to override that fallback.
@@ -1474,3 +1480,6 @@ module.exports.getBadgePaths = function () {
     }
   };
 };
+
+ScreepsSC.end(module);
+})();
