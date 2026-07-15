@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Screeps SC",
   "description": "Extended browser functionality to the game Screeps",
-  "version": "2.0",
+  "version": "2.0.1",
   "permissions": [
     "storage",
     "tabs",
