@@ -15,6 +15,7 @@ Status as of 2026-07-07, after the Manifest V3 port (Chrome + Firefox). Legend:
 | [rank.leaderboard](#rankleaderboard) | ✅ | Leaderboard pages |
 | [room.creep.names](#roomcreepnames) | ✅ | Room view |
 | [room.console.icons](#roomconsoleicons) | ✅ | Room view console |
+| [room.visual.panel](#roomvisualpanel) | ⬜ | Room view (floating panel + left-controls button) |
 
 All LOAN-based modules require the `leagueofautomatednations.com` host permission
 (in Firefox: `about:addons → Screeps SC → Permissions`).
@@ -199,6 +200,41 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
 
 ![Console macro buttons in the room view](images/screeps-sc-console-icon-create.png)
 ![Adding a new console macro command](images/screeps-sc-console-icon-add-command.png)
+
+## room.visual.panel
+
+- **File:** `modules/room.visual.panel.js`
+- **Trigger:** navigating to `https://screeps.com/a/#!/room/`
+- **What it does:** gives RoomVisual output a place to render that doesn't block
+  the view of the room. Adds a **movable, resizable floating panel** that mirrors
+  the client's dedicated room-visual canvas (`canvas.room-visual`, the one the
+  Angular `app-room-visual` directive paints — separate from the PIXI game
+  canvas) into its own canvas via `drawImage()` at ~15fps, plus an **eye toggle**
+  that hides the visuals on the room canvas itself (CSS `visibility: hidden` via
+  a class on `<body>`, so the ng-if'd source canvas stays alive and keeps
+  feeding the mirror). Works with **any** bot's RoomVisual output — it copies
+  pixels, it never parses visual data. Header buttons: hide-on-room (eye),
+  collapse/expand, close. Drag by the header; resize from the bottom-right
+  corner (CSS `resize: both`, canvas bitmap kept in sync via `ResizeObserver`,
+  devicePixelRatio-aware). A picture-in-picture toggle button in the room view's
+  `.left-controls` (self-healed via a rAF-coalesced `MutationObserver`, like
+  world.battle.radar's) reopens a closed panel. Position / size / collapsed /
+  hide-on-room / closed state persist to `localStorage` (`scRoomVisualPanel`).
+- **Caveats:** the mirror needs the native **"Show room visuals"** display option
+  ON — that option's ng-if creates the source canvas. When it's off (or the
+  canvas is mid-recreation on a room switch) the panel shows a static hint
+  instead of a stale frame and recovers automatically (the source is
+  re-queried every frame). The panel hides and the loop stops when navigating
+  off the room view; it resumes on return. The drawImage copy is skipped while
+  the panel is collapsed/closed or the tab is hidden. Logs `[visual.panel]`
+  breadcrumbs to the page console.
+- **Verify:** open a room where your bot draws RoomVisuals; a "Room Visuals"
+  panel appears (top-right by default) mirroring them. Drag it by the header,
+  resize it by the corner, collapse it, close it and reopen via the
+  left-controls button, and click the eye — the room canvas visuals disappear
+  while the panel keeps updating. Reload: everything (position, size, states)
+  is remembered.
+- **Status:** ⬜ not yet verified.
 
 ---
 

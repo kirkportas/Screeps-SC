@@ -65,6 +65,15 @@
             }
         },
         {
+            "path": "modules/room.visual.panel.js",
+            "runAt":{
+                "onUpdate": "https://screeps.com/a/#!/room/"
+            },
+            "options":{
+                "image": "/options/images/room.visual.panel.png"
+            }
+        },
+        {
             "path": "modules/room.creep.names.js",
             "runAt":{
                 "onUpdate": "https://screeps.com/a/#!/room/" 
