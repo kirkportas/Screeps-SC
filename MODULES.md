@@ -206,34 +206,54 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
 - **File:** `modules/room.visual.panel.js`
 - **Trigger:** navigating to `https://screeps.com/a/#!/room/`
 - **What it does:** gives RoomVisual output a place to render that doesn't block
-  the view of the room. Adds a **movable, resizable floating panel** that mirrors
-  the client's dedicated room-visual canvas (`canvas.room-visual`, the one the
-  Angular `app-room-visual` directive paints — separate from the PIXI game
-  canvas) into its own canvas via `drawImage()` at ~15fps, plus an **eye toggle**
-  that hides the visuals on the room canvas itself (CSS `visibility: hidden` via
-  a class on `<body>`, so the ng-if'd source canvas stays alive and keeps
-  feeding the mirror). Works with **any** bot's RoomVisual output — it copies
-  pixels, it never parses visual data. Header buttons: hide-on-room (eye),
+  the view of the room. Adds a **movable, resizable floating panel** with two
+  render sources, **data first**:
+  1. **Scope data (primary):** a 500ms interval reads the serialized RoomVisual
+     payload off the room view's Angular scope (`Room.visual`, newline-delimited
+     JSON records) and the ~15fps rAF loop parses it (cached by payload
+     identity — unchanged payloads skip the redraw entirely) and draws the
+     records (text / line / circle / rect / poly, official style defaults,
+     painter's-algorithm order) directly onto the panel canvas. This needs no
+     native canvas, so the client's **"Show room visuals"** display option can
+     stay **OFF** — the room shows no visuals at all and the panel is the only
+     render surface. An empty-but-present payload (bot drew nothing this tick)
+     renders as a blank frame in data mode, never a flash to the fallback.
+  2. **Canvas mirror (fallback):** when no payload is found on the scope but the
+     native option is ON (its ng-if creates `canvas.room-visual`, the one the
+     Angular `app-room-visual` directive paints — separate from the PIXI game
+     canvas), the panel mirrors that canvas via `drawImage()` — pixel-perfect,
+     no parsing.
+  When neither source exists, a static hint shows. The **eye toggle** hides the
+  visuals on the room canvas itself (CSS `visibility: hidden` via a class on
+  `<body>`, so the ng-if'd source canvas stays alive and keeps feeding the
+  mirror) — it only matters in mirror mode; in data mode with the option off
+  the room has nothing to hide. Header buttons: hide-on-room (eye),
   collapse/expand, close. Drag by the header; resize from the bottom-right
   corner (CSS `resize: both`, canvas bitmap kept in sync via `ResizeObserver`,
   devicePixelRatio-aware). A picture-in-picture toggle button in the room view's
   `.left-controls` (self-healed via a rAF-coalesced `MutationObserver`, like
   world.battle.radar's) reopens a closed panel. Position / size / collapsed /
   hide-on-room / closed state persist to `localStorage` (`scRoomVisualPanel`).
-- **Caveats:** the mirror needs the native **"Show room visuals"** display option
-  ON — that option's ng-if creates the source canvas. When it's off (or the
-  canvas is mid-recreation on a room switch) the panel shows a static hint
-  instead of a stale frame and recovers automatically (the source is
-  re-queried every frame). The panel hides and the loop stops when navigating
-  off the room view; it resumes on return. The drawImage copy is skipped while
-  the panel is collapsed/closed or the tab is hidden. Logs `[visual.panel]`
-  breadcrumbs to the page console.
-- **Verify:** open a room where your bot draws RoomVisuals; a "Room Visuals"
-  panel appears (top-right by default) mirroring them. Drag it by the header,
-  resize it by the corner, collapse it, close it and reopen via the
-  left-controls button, and click the eye — the room canvas visuals disappear
-  while the panel keeps updating. Reload: everything (position, size, states)
-  is remembered.
+- **Caveats:** the active source is breadcrumbed once per change
+  (`[visual.panel] source: scope data` / `source: canvas mirror`) — check the
+  page console to tell which mode you're in. Angular scope reads happen only on
+  the slow interval (never per frame) and are guarded against route-transition
+  throws; the cached payload is dropped on `hashchange` so a previous room's
+  visuals never render into the new room. The panel hides and the loop stops
+  when navigating off the room view; it resumes on return. Rendering is skipped
+  while the panel is collapsed/closed or the tab is hidden. Font strings in
+  text records: numeric sizes (tile units) are scaled; full CSS font strings
+  are used as-is.
+- **Verify:** the key test — turn the native **"Show room visuals" OFF**: the
+  room canvas shows no visuals at all while the panel still renders them (the
+  console logs `source: scope data`). Then turn the option ON and verify the
+  panel matches the native canvas. Also: open a room where your bot draws
+  RoomVisuals; a "Room Visuals" panel appears (top-right by default). Drag it
+  by the header, resize it by the corner (it repaints), collapse it, close it
+  and reopen via the left-controls button; switch rooms and confirm no stale
+  visuals flash. With the option ON, click the eye — the room canvas visuals
+  disappear while the panel keeps updating. Reload: everything (position,
+  size, states) is remembered.
 - **Status:** ⬜ not yet verified.
 
 ---

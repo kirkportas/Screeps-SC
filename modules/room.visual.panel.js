@@ -8,22 +8,38 @@ var module = ScreepsSC.begin(document.currentScript);
  * Room Visuals panel.
  *
  * Gives RoomVisual output a place to render that doesn't block the view of the
- * room: a movable, resizable, floating panel that MIRRORS the client's dedicated
- * room-visual canvas, plus a toggle that hides the visuals on the room itself.
+ * room: a movable, resizable, floating panel with TWO render sources, data first.
  *
- * How it works — mirror, don't parse. The room view draws serialized RoomVisual
- * data onto its own canvas, separate from the PIXI game canvas:
- *   <canvas app-room-visual="Room.visual" class="room-visual" width="800" height="800">
- * (it exists only while the native "Show room visuals" display option is ON —
- * an ng-if creates/destroys it). Each animation frame (throttled to ~15fps) we
- * drawImage() that canvas into our own panel canvas, scaled to fit. That mirrors
- * any bot's visuals pixel-perfectly with zero knowledge of the bot.
+ * 1. PRIMARY — scope data. The serialized RoomVisual payload rides on the room
+ *    view's Angular scope as `Room.visual` (normally a newline-delimited JSON
+ *    string, one record per line: t:"t" text / "l" line / "c" circle / "r" rect
+ *    / "p" poly, with style object `s`). A 500ms interval reads it via
+ *    module.getScopeData into module.exports.latestVisual (never per frame —
+ *    getScopeData polls with retries internally); the ~15fps rAF loop parses it
+ *    (cached by payload identity) and draws the records onto the panel canvas
+ *    itself, painter's-algorithm order, styled per the official RoomVisual
+ *    defaults. This needs no native canvas at all, so the client's
+ *    "Show room visuals" display option can stay OFF — the room stays clean and
+ *    the panel is the ONLY place visuals render. An empty-but-present payload
+ *    means the bot drew nothing this tick: that renders as a blank frame in
+ *    data mode, never a flash to the fallback.
  *
- * The "hide on room" (eye) toggle works by flipping a class on <body> whose CSS
- * rule sets `visibility: hidden` on the source canvas. visibility (not
- * display:none, and never Room.displayOptions.showRoomVisual = false) keeps the
- * ng-if canvas alive and the directive still paints it, so our mirror keeps
- * working while the room stays clean.
+ * 2. FALLBACK — canvas mirror. When no visual payload is found on the scope,
+ *    but the native option is ON so the client's dedicated room-visual canvas
+ *    exists (<canvas app-room-visual="Room.visual" class="room-visual"> — an
+ *    ng-if creates/destroys it with the option), we drawImage() that canvas
+ *    into ours, scaled to fit: pixel-perfect, zero knowledge of the payload.
+ *
+ * When neither source exists the panel shows a static hint. The active source
+ * is breadcrumbed once per change: "[visual.panel] source: scope data" /
+ * "source: canvas mirror".
+ *
+ * The "hide on room" (eye) toggle flips a class on <body> whose CSS rule sets
+ * `visibility: hidden` on the native canvas. It only matters in MIRROR mode
+ * (with the native option ON): visibility (not display:none, and never
+ * Room.displayOptions.showRoomVisual = false) keeps the ng-if canvas alive and
+ * painting, so the mirror keeps working while the room stays clean. In data
+ * mode with the option OFF there is nothing on the room to hide.
  *
  * Panel position / size / collapsed / hide-on-room / closed state persist to
  * localStorage under one JSON key (scRoomVisualPanel). When the panel is closed,
@@ -32,12 +48,14 @@ var module = ScreepsSC.begin(document.currentScript);
  */
 
 var STORAGE_KEY = "scRoomVisualPanel";
-var FRAME_MS = 66; // ~15fps mirror cadence — cheap, and RoomVisuals only change once per game tick anyway
+var FRAME_MS = 66; // ~15fps render cadence — cheap, and RoomVisuals only change once per game tick anyway
+var SCOPE_POLL_MS = 500; // Room.visual refresh cadence (a game tick is never faster than ~1s)
 
 module.exports.init = function () {
   console.log("[visual.panel] init");
 
   module.exports.state = loadState();
+  resetVisualCache();
   ensureStyle();
   applyHideOnRoom();
 
@@ -60,6 +78,9 @@ module.exports.init = function () {
   module.exports.panelObserver.observe(document.body, { childList: true, subtree: true });
 
   $(window).off("hashchange.scrv").on("hashchange.scrv", function () {
+    // Room (or route) changed: drop the cached payload so the previous room's
+    // visuals can never render into the new room's panel.
+    resetVisualCache();
     ensureAll();
   });
 
@@ -128,7 +149,7 @@ function ensureAll() {
   var panel = document.getElementById("sc-rv-panel");
 
   if (!onRoomView()) {
-    // Navigated away: stop mirroring and hide (not remove — the panel lives on
+    // Navigated away: stop rendering and hide (not remove — the panel lives on
     // document.body with position:fixed, so it survives Angular route renders
     // and resumes instantly when a room view returns).
     stopLoop();
@@ -193,9 +214,10 @@ function ensureStyle() {
     ".sc-rv-hint { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: none;",
     "  align-items: center; justify-content: center; text-align: center;",
     "  color: #888; font-size: 12px; padding: 12px; }",
-    // The eye toggle: hide the client's own room-visual canvas while keeping it
-    // alive (ng-if would destroy it; display:none could disturb layout), so the
-    // directive still paints every tick and our mirror keeps receiving frames.
+    // The eye toggle (mirror mode only): hide the client's own room-visual
+    // canvas while keeping it alive (ng-if would destroy it; display:none could
+    // disturb layout), so the directive still paints every tick and the mirror
+    // fallback keeps receiving frames.
     "body.sc-rv-hide-on-room canvas.room-visual { visibility: hidden !important; }"
   ].join("\n");
   document.head.appendChild(style);
@@ -210,7 +232,7 @@ function buildPanel() {
   panel.id = "sc-rv-panel";
 
   // Static skeleton only — every dynamic string in this module goes through
-  // textContent, never an HTML sink.
+  // textContent (or the canvas), never an HTML sink.
   panel.innerHTML =
     '<div class="sc-rv-header">' +
     '  <span class="sc-rv-title">Room Visuals</span>' +
@@ -222,7 +244,7 @@ function buildPanel() {
     "</div>" +
     '<div class="sc-rv-body">' +
     '  <canvas class="sc-rv-canvas"></canvas>' +
-    '  <div class="sc-rv-hint">Enable "Show room visuals" in the room\'s Display options to mirror visuals here.</div>' +
+    '  <div class="sc-rv-hint">No visuals received for this room.</div>' +
     "</div>";
 
   document.body.appendChild(panel);
@@ -312,8 +334,8 @@ function applyHideOnRoom() {
     icon.className = state.hideOnRoom ? "fa fa-eye-slash" : "fa fa-eye";
     button.classList.toggle("sc-rv-active", state.hideOnRoom);
     button.title = state.hideOnRoom
-      ? "Visuals hidden on the room canvas — click to show them again"
-      : "Hide visuals on the room canvas (they keep rendering here)";
+      ? "Native room-visual canvas hidden — click to show it again (only matters in mirror mode)"
+      : 'Hide the native room-visual canvas (only matters in mirror mode, i.e. with "Show room visuals" ON)';
   }
 }
 
@@ -369,22 +391,114 @@ function onHeaderPointerDown(e) {
 }
 
 // ---------------------------------------------------------------------------
-// Mirror loop
+// Scope data feed (PRIMARY source)
+// ---------------------------------------------------------------------------
+
+// The rAF loop only ever reads module.exports.latestVisual; this slow interval
+// is the only thing that touches the Angular scope. getScopeData must never be
+// called per frame — it polls with retries internally (up to ~5s when the
+// scope isn't ready) and never calls back at all on failure, so we gate it
+// with an in-flight flag plus a timeout that unlatches the never-called-back
+// error path.
+function pollScopeVisual() {
+  if (!onRoomView()) return;
+
+  var now = Date.now();
+  if (module.exports.scopeReqPending && now - module.exports.scopeReqTime < 6000) return;
+  module.exports.scopeReqPending = true;
+  module.exports.scopeReqTime = now;
+
+  // Stamp the request with the current route so a callback that raced a room
+  // change gets discarded (stale visuals must never render into the new room).
+  var requestKey = window.location.hash;
+
+  try {
+    // mustExistPathArr is deliberately [] (NOT ["Room.visual"]): an empty
+    // visual payload is valid data — "the bot drew nothing" — and must not be
+    // treated as "scope not ready".
+    module.getScopeData("room", "Room", [], function (Room) {
+      module.exports.scopeReqPending = false;
+      if (window.location.hash !== requestKey) return;
+      var visual = Room ? Room.visual : undefined;
+      module.exports.latestVisual = {
+        // present = the scope carries a visual payload at all (even an empty
+        // one). Absent (undefined/null) → the mirror/hint fallbacks apply.
+        present: visual !== undefined && visual !== null,
+        raw: visual
+      };
+    });
+  } catch (e) {
+    // Angular scope reads can throw mid route-transition — retry next poll.
+    module.exports.scopeReqPending = false;
+  }
+}
+
+function resetVisualCache() {
+  module.exports.latestVisual = null;
+  module.exports.parsedRaw = null;
+  module.exports.parsedRawLen = -1;
+  module.exports.parsedRecords = null;
+  module.exports.lastDrawnRaw = null;
+  module.exports.lastDrawnRawLen = -1;
+  module.exports.scopeReqPending = false;
+}
+
+// Room.visual arrives as a newline-delimited JSON string (the engine's wire
+// format) but is handled defensively: an already-parsed array of records also
+// works, and malformed lines are skipped.
+function parseVisualRecords(raw) {
+  var records = [];
+
+  if (Array.isArray(raw)) {
+    for (var i = 0; i < raw.length; i++) {
+      if (raw[i] && typeof raw[i] === "object") records.push(raw[i]);
+    }
+    return records;
+  }
+
+  if (typeof raw === "string") {
+    var lines = raw.split("\n");
+    for (var j = 0; j < lines.length; j++) {
+      var line = lines[j].trim();
+      if (!line) continue;
+      try {
+        var rec = JSON.parse(line);
+        if (rec && typeof rec === "object") records.push(rec);
+      } catch (e) {
+        // bad line — skip it, keep the rest
+      }
+    }
+  }
+
+  return records;
+}
+
+// ---------------------------------------------------------------------------
+// Render loop
 // ---------------------------------------------------------------------------
 
 function startLoop() {
   if (module.exports.loopRunning) return;
   module.exports.loopRunning = true;
   module.exports.lastDraw = 0;
+
+  if (module.exports.scopePollTimer) clearInterval(module.exports.scopePollTimer);
+  module.exports.scopePollTimer = setInterval(pollScopeVisual, SCOPE_POLL_MS);
+  pollScopeVisual();
+
   requestAnimationFrame(loopTick);
-  console.log("[visual.panel] mirror loop started");
+  console.log("[visual.panel] render loop started");
 }
 
 function stopLoop() {
   if (module.exports.loopRunning) {
-    console.log("[visual.panel] mirror loop stopped");
+    console.log("[visual.panel] render loop stopped");
   }
   module.exports.loopRunning = false;
+  if (module.exports.scopePollTimer) {
+    clearInterval(module.exports.scopePollTimer);
+    module.exports.scopePollTimer = null;
+  }
 }
 
 function loopTick(timestamp) {
@@ -399,27 +513,86 @@ function loopTick(timestamp) {
   var state = module.exports.state;
   if (state.closed || state.collapsed) return;
 
-  drawFrame();
+  drawFrame(false);
 }
 
-function drawFrame() {
+// Breadcrumb once per source change, never per frame.
+function setRenderSource(source) {
+  if (module.exports.renderSource === source) return;
+  module.exports.renderSource = source;
+  if (source === "data") {
+    console.log("[visual.panel] source: scope data");
+  } else if (source === "mirror") {
+    console.log("[visual.panel] source: canvas mirror");
+  }
+}
+
+// Source selection per frame: scope data (primary) → canvas mirror (fallback,
+// needs the native "Show room visuals" option ON) → static hint.
+function drawFrame(force) {
   var panel = document.getElementById("sc-rv-panel");
   if (!panel || panel.style.display === "none") return;
 
   var canvas = panel.querySelector(".sc-rv-canvas");
   var hint = panel.querySelector(".sc-rv-hint");
+  var latest = module.exports.latestVisual;
 
-  // Re-query every frame: room switches recreate the whole stage (and the
-  // native display-options toggle creates/destroys the canvas via ng-if), so a
-  // cached reference would go stale. A querySelector at 15fps is negligible.
+  // DATA MODE: the scope carried a visual payload — even an empty one ("the
+  // bot drew nothing this tick" renders as a blank frame; it must not flash
+  // over to the mirror/hint).
+  if (latest && latest.present) {
+    setRenderSource("data");
+    hint.style.display = "none";
+
+    if (!canvas.width || !canvas.height) {
+      syncCanvasSize(panel);
+      if (!canvas.width || !canvas.height) return;
+    }
+
+    // Unchanged payload → skip the redraw entirely (visuals change at most
+    // once per game tick). A canvas resize forces one (force=true) because
+    // resizing wipes the bitmap. Arrays additionally compare by length in
+    // case the scope mutates one in place.
+    var raw = latest.raw;
+    var rawLen = Array.isArray(raw) ? raw.length : -1;
+    if (!force && raw === module.exports.lastDrawnRaw && rawLen === module.exports.lastDrawnRawLen) {
+      return;
+    }
+
+    // Re-parse only when the payload actually changed, not on every redraw.
+    if (raw !== module.exports.parsedRaw || rawLen !== module.exports.parsedRawLen || !module.exports.parsedRecords) {
+      module.exports.parsedRaw = raw;
+      module.exports.parsedRawLen = rawLen;
+      module.exports.parsedRecords = parseVisualRecords(raw);
+    }
+
+    var ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawRecords(ctx, canvas, module.exports.parsedRecords);
+    module.exports.lastDrawnRaw = raw;
+    module.exports.lastDrawnRawLen = rawLen;
+    return;
+  }
+
+  // Leaving data mode (or never in it): make sure re-entering it repaints.
+  module.exports.lastDrawnRaw = null;
+  module.exports.lastDrawnRawLen = -1;
+
+  // MIRROR MODE: no payload on the scope, but the client's own room-visual
+  // canvas exists (native option ON) — copy its pixels. Re-query every frame:
+  // room switches recreate the whole stage (and the native display-options
+  // toggle creates/destroys the canvas via ng-if), so a cached reference would
+  // go stale. A querySelector at 15fps is negligible.
   var source = document.querySelector("canvas.room-visual");
 
   if (!source || !source.width || !source.height) {
+    setRenderSource(null);
     hint.style.display = "flex";
     var blankCtx = canvas.getContext("2d");
     blankCtx.clearRect(0, 0, canvas.width, canvas.height);
     return;
   }
+  setRenderSource("mirror");
   hint.style.display = "none";
 
   if (!canvas.width || !canvas.height) {
@@ -427,8 +600,8 @@ function drawFrame() {
     if (!canvas.width || !canvas.height) return;
   }
 
-  var ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  var mirrorCtx = canvas.getContext("2d");
+  mirrorCtx.clearRect(0, 0, canvas.width, canvas.height);
 
   // Fit the (square, 800x800) source into our canvas preserving aspect ratio.
   var scale = Math.min(canvas.width / source.width, canvas.height / source.height);
@@ -438,7 +611,7 @@ function drawFrame() {
   var dy = (canvas.height - drawHeight) / 2;
 
   try {
-    ctx.drawImage(source, dx, dy, drawWidth, drawHeight);
+    mirrorCtx.drawImage(source, dx, dy, drawWidth, drawHeight);
   } catch (e) {
     // The source can be mid-teardown during a room switch; just skip the frame.
   }
@@ -456,7 +629,207 @@ function syncCanvasSize(panel) {
   if (canvas.width !== width || canvas.height !== height) {
     canvas.width = width;
     canvas.height = height;
-    drawFrame(); // repaint immediately so resizing never shows a blank panel
+    drawFrame(true); // repaint immediately (forced) so resizing never shows a blank panel
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Data renderer — draws parsed RoomVisual records onto the panel canvas
+// ---------------------------------------------------------------------------
+
+// Style defaults below follow the official RoomVisual API docs
+// (https://docs.screeps.com/api/#RoomVisual): shapes default to opacity 0.5,
+// text to opacity 1; strokeWidth defaults 0.1 (0.15 for text stroke); circle
+// radius 0.15; text font size 0.5 tiles.
+
+function num(value, fallback) {
+  return typeof value === "number" && isFinite(value) ? value : fallback;
+}
+
+// dashed/dotted use a dash unit of ~one default line-width in pixels.
+function applyLineDash(ctx, lineStyle, u) {
+  var d = 0.1 * u;
+  if (lineStyle === "dashed") {
+    ctx.setLineDash([4 * d, 4 * d]);
+  } else if (lineStyle === "dotted") {
+    ctx.setLineDash([1 * d, 2 * d]);
+  } else {
+    ctx.setLineDash([]);
+  }
+}
+
+function pathRoundRect(ctx, x, y, w, h, r) {
+  r = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+function drawRecords(ctx, canvas, records) {
+  if (!records || !records.length) return;
+
+  // Aspect-fit square, centered — the same fit math as the mirror path (the
+  // native canvas is square too). One tile = drawSize/50 px; like the client,
+  // tile coordinate n maps to the tile's CENTER at (n + 0.5) tiles.
+  var drawSize = Math.min(canvas.width, canvas.height);
+  var u = drawSize / 50;
+  var ox = (canvas.width - drawSize) / 2;
+  var oy = (canvas.height - drawSize) / 2;
+
+  function px(x) { return ox + (x + 0.5) * u; }
+  function py(y) { return oy + (y + 0.5) * u; }
+
+  // Painter's algorithm: records draw strictly in payload order.
+  for (var i = 0; i < records.length; i++) {
+    try {
+      drawRecord(ctx, records[i], px, py, u);
+    } catch (e) {
+      // one malformed record must not take down the frame
+    }
+    // Reset per-shape state so one record's style never leaks into the next.
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawRecord(ctx, rec, px, py, u) {
+  var s = rec.s || {};
+
+  switch (rec.t) {
+    case "l": { // line
+      ctx.globalAlpha = num(s.opacity, 0.5);
+      ctx.strokeStyle = s.color || "#ffffff";
+      ctx.lineWidth = num(s.width, 0.1) * u;
+      applyLineDash(ctx, s.lineStyle, u);
+      ctx.beginPath();
+      ctx.moveTo(px(rec.x1), py(rec.y1));
+      ctx.lineTo(px(rec.x2), py(rec.y2));
+      ctx.stroke();
+      break;
+    }
+
+    case "c": { // circle
+      ctx.globalAlpha = num(s.opacity, 0.5);
+      ctx.beginPath();
+      ctx.arc(px(rec.x), py(rec.y), num(s.radius, 0.15) * u, 0, Math.PI * 2);
+      ctx.fillStyle = s.fill || "#ffffff";
+      ctx.fill();
+      if (s.stroke) {
+        ctx.strokeStyle = s.stroke;
+        ctx.lineWidth = num(s.strokeWidth, 0.1) * u;
+        applyLineDash(ctx, s.lineStyle, u);
+        ctx.stroke();
+      }
+      break;
+    }
+
+    case "r": { // rect — w/h may be serialized under either short or long keys
+      var w = num(rec.w !== undefined ? rec.w : rec.width, 0) * u;
+      var h = num(rec.h !== undefined ? rec.h : rec.height, 0) * u;
+      var rx = px(rec.x);
+      var ry = py(rec.y);
+      ctx.globalAlpha = num(s.opacity, 0.5);
+      ctx.fillStyle = s.fill || "#ffffff";
+      ctx.fillRect(rx, ry, w, h);
+      if (s.stroke) {
+        ctx.strokeStyle = s.stroke;
+        ctx.lineWidth = num(s.strokeWidth, 0.1) * u;
+        applyLineDash(ctx, s.lineStyle, u);
+        ctx.strokeRect(rx, ry, w, h);
+      }
+      break;
+    }
+
+    case "p": { // poly — points may be [x,y] pairs or {x,y} objects
+      var points = rec.points;
+      if (!points || !points.length) break;
+      ctx.globalAlpha = num(s.opacity, 0.5);
+      ctx.beginPath();
+      for (var i = 0; i < points.length; i++) {
+        var pt = points[i];
+        var x = Array.isArray(pt) ? pt[0] : pt.x;
+        var y = Array.isArray(pt) ? pt[1] : pt.y;
+        if (i === 0) ctx.moveTo(px(x), py(y));
+        else ctx.lineTo(px(x), py(y));
+      }
+      if (s.fill) {
+        ctx.fillStyle = s.fill;
+        ctx.fill();
+      }
+      // Unlike the closed shapes, poly STROKES by default (fill defaults off).
+      if (s.stroke === undefined || s.stroke) {
+        ctx.strokeStyle = s.stroke || "#ffffff";
+        ctx.lineWidth = num(s.strokeWidth, 0.1) * u;
+        applyLineDash(ctx, s.lineStyle, u);
+        ctx.stroke();
+      }
+      break;
+    }
+
+    case "t": { // text — y is the BASELINE, matching the official renderer
+      var text = rec.text === undefined || rec.text === null ? "" : String(rec.text);
+      if (!text) break;
+
+      // font: a number is a size in tile units; a bare "<size> <family>"
+      // string gets its size scaled the same way; any other string (a full
+      // CSS font like "bold 12px serif") is used as-is — its sizes are
+      // already px and we deliberately keep that translation simple.
+      var fontPx = 0.5 * u;
+      var fontCss;
+      if (typeof s.font === "number") {
+        fontPx = s.font * u;
+        fontCss = fontPx + "px sans-serif";
+      } else if (typeof s.font === "string") {
+        var m = s.font.match(/^\s*([\d.]+)\s+(.+)$/);
+        if (m) {
+          fontPx = parseFloat(m[1]) * u;
+          fontCss = fontPx + "px " + m[2];
+        } else {
+          fontCss = s.font;
+        }
+      } else {
+        fontCss = fontPx + "px sans-serif";
+      }
+
+      ctx.globalAlpha = num(s.opacity, 1);
+      ctx.font = fontCss;
+      ctx.textAlign = s.align === "left" || s.align === "right" ? s.align : "center";
+      ctx.textBaseline = "alphabetic";
+
+      var tx = px(rec.x);
+      var ty = py(rec.y);
+
+      if (s.backgroundColor) {
+        var pad = num(s.backgroundPadding, 0.3) * u;
+        var metrics = ctx.measureText(text);
+        // actualBoundingBox* gives a tight box; fall back to a font-size
+        // approximation on engines without it.
+        var ascent = metrics.actualBoundingBoxAscent !== undefined ? metrics.actualBoundingBoxAscent : fontPx * 0.8;
+        var descent = metrics.actualBoundingBoxDescent !== undefined ? metrics.actualBoundingBoxDescent : fontPx * 0.2;
+        var bw = metrics.width;
+        var bx = ctx.textAlign === "left" ? tx : ctx.textAlign === "right" ? tx - bw : tx - bw / 2;
+        ctx.fillStyle = s.backgroundColor;
+        pathRoundRect(ctx, bx - pad, ty - ascent - pad, bw + 2 * pad, ascent + descent + 2 * pad, pad);
+        ctx.fill();
+      }
+
+      if (s.stroke) {
+        ctx.strokeStyle = s.stroke;
+        ctx.lineWidth = num(s.strokeWidth, 0.15) * u;
+        ctx.strokeText(text, tx, ty);
+      }
+      ctx.fillStyle = s.color || "#ffffff";
+      ctx.fillText(text, tx, ty);
+      break;
+    }
+
+    default:
+      // unknown record type — skip
+      break;
   }
 }
 
