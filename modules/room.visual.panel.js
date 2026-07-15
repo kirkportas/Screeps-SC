@@ -150,11 +150,16 @@ function ensureAll() {
   if (!panel) {
     panel = buildPanel();
     console.log("[visual.panel] panel injected");
+  } else if (panel.style.display === "none") {
+    // Resuming from hidden (navigated back / reopened) — re-apply saved
+    // geometry. Deliberately NOT on every pass: ensureAll runs on every
+    // coalesced mutation frame, and re-imposing saved position/size while the
+    // user is mid-drag or mid-resize would snap the panel out of their hands.
+    panel.style.display = "";
+    applyGeometry(panel);
+    applyCollapsed(panel);
   }
-  panel.style.display = "";
-  applyGeometry(panel);
-  applyCollapsed(panel);
-  applyHideOnRoom();
+  applyHideOnRoom(); // idempotent class/icon sync — safe to re-assert
   startLoop();
 }
 
