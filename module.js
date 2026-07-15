@@ -283,6 +283,30 @@
             return "";
         };
 
+        // Fetches the shards you own rooms on, ranked by owned-room count descending,
+        // as [{name, count}]. The market modules use this to default to (and offer in a
+        // dropdown) the shard your stockpile actually lives on. cb(null) on failure.
+        module.getOwnedShards = function (cb) {
+            try {
+                var userid = JSON.parse(localStorage.getItem("users.code.activeWorld"))[0]._id;
+                module.ajaxGet("https://screeps.com/api/user/rooms?id=" + userid, function (data) {
+                    if (data && data.shards) {
+                        var ranked = Object.keys(data.shards)
+                            .map(function (name) {
+                                return { name: name, count: (data.shards[name] || []).length };
+                            })
+                            .sort(function (a, b) { return b.count - a.count; });
+                        cb(ranked);
+                    } else {
+                        cb(null);
+                    }
+                });
+            } catch (e) {
+                console.warn("getOwnedShards failed: " + e);
+                cb(null);
+            }
+        };
+
         module.sendConsoleCommand = function (command, cb, shard) {
 
             if (!shard) {

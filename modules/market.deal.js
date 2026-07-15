@@ -18,12 +18,21 @@ var module = ScreepsSC.begin(document.currentScript);
 module.exports.accountResources = ["cpuUnlock", "accessKey", "pixel"];
 
 // Which shard the deal expression is executed on. Account-level deals are global,
-// so any shard where your code actually runs works — but it MUST be a shard with
-// a live runtime, or the console expression is never evaluated. Left "" so
-// resolveShard auto-detects a shard you own rooms on; set it to a shard name to
-// pin manually (that override wins over auto-detection). "shardX" remains only the
-// last-resort fallback in sendDeal when nothing else resolves.
+// so any shard where your code actually runs works — but it MUST be a shard with a
+// live runtime, or the console expression is never evaluated. activeShard() chooses
+// it with this priority:
+//   1. dealShard below — a hard code-level pin (normally "" / unset).
+//   2. the Shard dropdown selection, persisted in localStorage ("scMarketShard",
+//      shared with market.my.resources so both pages track one choice).
+//   3. autoShard — the shard you own the MOST rooms on (filled by resolveShard).
+//   4. "shardX" as a last resort.
 module.exports.dealShard = "";
+module.exports.autoShard = "";
+
+// localStorage key + document-event name shared with market.my.resources so the two
+// shard dropdowns (both visible on e.g. #!/market/all/pixel) stay in sync.
+module.exports.SHARD_KEY = "scMarketShard";
+module.exports.SHARD_EVENT = "sc-market-shard-changed";
 
 module.exports.init = function () {
   console.log("[market.deal] init");
@@ -38,6 +47,7 @@ module.exports.init = function () {
   // MutationObserver + initial-pass pattern as world.battle.radar's ensureButton.
   function ensureButtons() {
     if (!module.exports.currentResource()) return; // not on an account resource page
+    module.exports.ensureToolbar();
     var rows = $("mat-row");
     var added = 0;
     rows.each(function () {
@@ -94,35 +104,80 @@ module.exports.update = function () {
   }
 };
 
-// Resolve the shard to run the deal expression on. Uses the manual override if
-// set, otherwise the first shard you own rooms on (guaranteed to have a runtime).
+// The shard deals run on. See the priority chain documented on module.exports.dealShard.
+module.exports.activeShard = function () {
+  return (
+    module.exports.dealShard ||
+    localStorage.getItem(module.exports.SHARD_KEY) ||
+    module.exports.autoShard ||
+    "shardX"
+  );
+};
+
+// Fetch the shards you own rooms on, ranked by room count, so the toolbar dropdown
+// can list them (with counts) and autoShard defaults to the one you own the most
+// rooms on — never shard0 just because a stray room sits there.
+// Mirrors market.my.resources.resolveShard.
 module.exports.resolveShard = function () {
-  if (module.exports.dealShard) return; // manually pinned
-  try {
-    var userid = JSON.parse(localStorage.getItem("users.code.activeWorld"))[0]._id;
-    module.ajaxGet("https://screeps.com/api/user/rooms?id=" + userid, function (data) {
-      if (data && data.shards && Object.keys(data.shards).length) {
-        var shards = Object.keys(data.shards);
-        // Prefer a shard you actually run on — never auto-pick shard0 when you
-        // have others (a leftover shard0 room shouldn't hijack the deal target).
-        module.exports.dealShard = shards.filter(function (s) { return s !== "shard0"; })[0] || shards[0];
-        console.log(
-          "[market.deal] deal shard resolved to " +
-            module.exports.dealShard +
-            " (your shards: " +
-            Object.keys(data.shards).join(", ") +
-            ")"
-        );
-      } else {
-        console.warn(
-          "[market.deal] could not resolve your shard from /api/user/rooms; deals will fall back to shardX. " +
-            "Set module.exports.dealShard manually if that is wrong."
-        );
-      }
-    });
-  } catch (e) {
-    console.warn("[market.deal] resolveShard failed: " + e);
-  }
+  module.getOwnedShards(function (ranked) {
+    if (ranked && ranked.length) {
+      module.exports.shards = ranked;
+      module.exports.autoShard = ranked[0].name;
+      console.log(
+        "[market.deal] shards " +
+          ranked.map(function (s) { return s.name + "(" + s.count + ")"; }).join(", ") +
+          "; active " +
+          module.exports.activeShard()
+      );
+      module.exports.refreshShardDropdown();
+    } else {
+      console.warn(
+        "[market.deal] could not resolve your shards from /api/user/rooms; deals will fall back to " +
+          module.exports.activeShard() +
+          ". Set module.exports.dealShard manually if that is wrong."
+      );
+    }
+  });
+};
+
+// (Re)populate the toolbar Shard dropdown from module.exports.shards and select the
+// active shard. Built with the DOM API (not innerHTML) so shard names are never
+// interpreted as markup. No-op until the toolbar and the shard list both exist.
+module.exports.refreshShardDropdown = function () {
+  var dd = document.getElementById("sc-deal-shard-dropdown");
+  if (!dd) return;
+
+  var active = module.exports.activeShard();
+  var shards = module.exports.shards;
+  var list = shards && shards.length ? shards : [{ name: active, count: null }];
+
+  dd.textContent = "";
+  list.forEach(function (s) {
+    var opt = document.createElement("option");
+    opt.value = s.name;
+    opt.textContent = s.count === null ? s.name : s.name + " (" + s.count + ")";
+    if (s.name === active) opt.selected = true;
+    dd.appendChild(opt);
+  });
+};
+
+// Insert a small "Deal shard: [dropdown]" toolbar above the order table, once. The
+// table lives in <app-market-resource>; anchor before the first mat-table so the
+// toolbar sits with the order list, not the page chrome.
+module.exports.ensureToolbar = function () {
+  if (document.getElementById("sc-deal-toolbar")) return; // already injected
+  var table = $("mat-table").first();
+  if (!table.length) return; // table not rendered yet — retry on next mutation
+
+  var bar = $(
+    '<div id="sc-deal-toolbar" style="display:flex;align-items:center;gap:6px;padding:6px 4px;color:#ccc;font-size:13px;">' +
+      "<span>Deal shard:</span>" +
+      '<select id="sc-deal-shard-dropdown" title="Shard deals are executed on" ' +
+      'style="border-color:transparent;background:#444;color:#ccc;"></select>' +
+      "</div>"
+  );
+  bar.insertBefore(table);
+  module.exports.refreshShardDropdown();
 };
 
 // Returns the account resource name for the current URL, or null if this is not
@@ -159,6 +214,23 @@ module.exports.messageForCode = function (code) {
 module.exports.bindHandlers = function () {
   var body = $("body");
   body.off(".scdeal");
+
+  // Shard dropdown: persist the choice (shared with market.my.resources) and notify
+  // the other module so its dropdown mirrors this one.
+  body.on("change.scdeal", "#sc-deal-shard-dropdown", function () {
+    localStorage.setItem(module.exports.SHARD_KEY, this.value);
+    console.log("[market.deal] deal shard set to " + this.value);
+    document.dispatchEvent(
+      new CustomEvent(module.exports.SHARD_EVENT, { detail: this.value })
+    );
+  });
+
+  // Another market module changed the shared shard — mirror it in our dropdown.
+  document.removeEventListener(module.exports.SHARD_EVENT, module.exports.onShardEvent);
+  module.exports.onShardEvent = function () {
+    module.exports.refreshShardDropdown();
+  };
+  document.addEventListener(module.exports.SHARD_EVENT, module.exports.onShardEvent);
 
   // Open the inline confirm form.
   body.on("click.scdeal", ".sc-deal-btn", function () {
@@ -256,11 +328,10 @@ module.exports.revertCell = function (cell) {
 module.exports.sendDeal = function (id, amount) {
   var command =
     "var __r = Game.market.deal('" + id + "', " + amount + "); console.log('SC-Deal:' + __r + ':' + '" + id + "');";
-  // Prefer the resolved shard we run code on; the account-resource market URL has
-  // no shard so getCurrentShard() returns "". Fall back to the shardX pin — NEVER
-  // to shard0, which sendConsoleCommand would otherwise default to (and where the
-  // bot doesn't run, so the deal would silently never execute).
-  var shard = module.exports.dealShard || module.getCurrentShard() || "shardX";
+  // The shard chosen in the toolbar (dropdown selection, else most-owned default,
+  // else shardX). NEVER shard0 (where the bot doesn't run, so the deal would
+  // silently never execute); sendConsoleCommand would otherwise default there.
+  var shard = module.exports.activeShard();
   console.log("[market.deal] deal sent id=" + id + " amount=" + amount + " shard=" + shard);
 
   if (!module.exports.socket) {

@@ -107,7 +107,8 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   market page: aggregates energy, power, base minerals, and all boost tiers
   (T1/T2/T3 compounds) across your rooms' storages and terminals, with a dropdown
   (None / Storage & Terminal / Storage / Terminal) persisted to `localStorage`
-  (`scMarketDropdown`). Holdings are fetched via a console expression that builds
+  (`scMarketDropdown`), plus a **Shard dropdown** to pick which shard the holdings are
+  read from. Holdings are fetched via a console expression that builds
   `window.SCMarket`, read back over a console websocket.
 - **Caveats:** app2-based port. The panel is injected via a rAF-coalesced
   `MutationObserver` (self-heals when Angular re-renders the market) immediately
@@ -115,10 +116,12 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   nav (All orders / My orders / History), above the resource content (see
   `module.exports.injectionAnchor`). It is **scoped to the All-orders view**
   (`#!/market/all…`) and is torn down (panel removed + socket closed) on My orders /
-  History. The holdings console expression runs on the shard embedded in a mineral
-  market URL, else `module.exports.resourcesShard` (auto-detected from the shards
-  you own rooms on, or a manual pin), else `shardX` — never a silent shard0
-  fallback. Logs `[market.resources]` breadcrumbs to the page console.
+  History. The holdings console expression runs on the shard chosen by the Shard
+  dropdown, whose selection persists in `localStorage` (`scMarketShard`, shared with
+  market.deal) and defaults to the shard you own the **most rooms** on; a hard
+  `module.exports.resourcesShard` pin still wins over both, and `shardX` is the last
+  resort — never a silent shard0 fallback. Logs `[market.resources]` breadcrumbs to
+  the page console.
 - **Verify:** open the Market section; a "My resources" overview panel appears above
   the order table and the amount spans populate with your storage/terminal totals.
 - **Status:** ✅ verified 2026-07-07 (ported to app2; panel anchored after
@@ -148,13 +151,17 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   CDK cells at click time (rows are recycled by Angular, so nothing is cached on the
   element). Injection self-heals via a rAF-coalesced `MutationObserver`. If the
   feedback socket can't open, the deal is still sent (just without the live flash).
-  Logs `[market.deal]` breadcrumbs to the page console.
+  A **Deal shard** dropdown above the order table picks which shard the deal runs on;
+  the choice persists in `localStorage` (`scMarketShard`, shared with market.resources
+  — the two dropdowns sync live when both are on screen) and defaults to the shard you
+  own the most rooms on. Logs `[market.deal]` breadcrumbs to the page console.
 - **Verify:** open Market → `cpuUnlock` (or `accessKey` / `pixel`); each order row
   gets a green Deal button on the right. Click it, wait for the countdown, Confirm;
   the row flashes OK/error and the console shows the `[market.deal]` trail.
-- **Status:** ✅ verified 2026-07-07 — deals execute on the shard resolved from the
-  shards you own rooms on (`module.exports.dealShard`, auto-detected or manually
-  pinned; falls back to `shardX`) and the row flashes the result.
+- **Status:** ✅ verified 2026-07-07 — deals execute on the shard chosen in the Deal
+  shard dropdown (defaults to the shard you own the most rooms on; a hard
+  `module.exports.dealShard` pin still wins; falls back to `shardX`) and the row
+  flashes the result.
 
 ![Deal button on account-resource order rows](images/screeps-sc-market-deal-ui.png)
 ![Inline confirm form with anti-double-click countdown](images/screeps-sc-market-deal-confirm.png)

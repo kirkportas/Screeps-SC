@@ -20,13 +20,22 @@ var module = ScreepsSC.begin(document.currentScript);
  * were ported off AngularJS.
  */
 
-// Which shard the holdings expression is executed on when the URL carries no
-// shard (account-resource / plain market URLs). Must be a shard with a live
-// runtime or the console expression is never evaluated. Left "" so resolveShard
-// auto-detects a shard you own rooms on; set it to a shard name to pin manually
-// (that override wins over auto-detection). "shardX" remains only the last-resort
-// fallback when neither the URL nor resolveShard yields a shard.
+// Which shard the holdings expression is executed on. Must be a shard with a live
+// runtime or the console expression is never evaluated. The active shard is chosen
+// by module.exports.activeShard() with this priority:
+//   1. resourcesShard below — a hard code-level pin (normally "" / unset).
+//   2. the in-panel Shard dropdown selection, persisted in localStorage
+//      ("scMarketShard", shared with market.deal so both pages track one choice).
+//   3. autoShard — the shard you own the MOST rooms on (filled by resolveShard);
+//      that is where your stockpile lives, so it is the sensible default.
+//   4. "shardX" as a last resort.
 module.exports.resourcesShard = "";
+module.exports.autoShard = "";
+
+// localStorage key + document-event name shared with market.deal so the two shard
+// dropdowns (both visible together on e.g. #!/market/all/pixel) stay in sync.
+module.exports.SHARD_KEY = "scMarketShard";
+module.exports.SHARD_EVENT = "sc-market-shard-changed";
 
 module.exports.init = function () {
   console.log("[market.resources] init");
@@ -64,6 +73,10 @@ module.exports.init = function () {
     // Land the panel right after <app-section-header> inside <app-market>, i.e.
     // just below the tab nav and above the resource content.
     module.exports.buildPanel().insertAfter(anchor);
+    // Fill the shard dropdown now that it is in the DOM (options come from the async
+    // resolveShard; refresh again here so a re-injected panel gets them immediately).
+    module.exports.refreshShardDropdown();
+    module.exports.updateResourceLinks();
     console.log("[market.resources] panel injected");
 
     // Open the holdings feedback socket once (reopened here if it was closed by a
@@ -86,6 +99,24 @@ module.exports.init = function () {
     }
     localStorage.setItem("scMarketDropdown", this.value);
   });
+
+  // Shard dropdown: persist the choice (shared with market.deal), re-point the tab
+  // links, refetch the holdings for the new shard, and tell the other module.
+  body.on("change.scres", "#sc-shard-dropdown", function () {
+    localStorage.setItem(module.exports.SHARD_KEY, this.value);
+    module.exports.applyShardSelection();
+    document.dispatchEvent(
+      new CustomEvent(module.exports.SHARD_EVENT, { detail: this.value })
+    );
+  });
+
+  // Another market module (market.deal) changed the shared shard — mirror it here.
+  document.removeEventListener(module.exports.SHARD_EVENT, module.exports.onShardEvent);
+  module.exports.onShardEvent = function () {
+    module.exports.refreshShardDropdown();
+    module.exports.applyShardSelection();
+  };
+  document.addEventListener(module.exports.SHARD_EVENT, module.exports.onShardEvent);
 
   ensurePanel();
 
@@ -143,32 +174,81 @@ module.exports.injectionAnchor = function () {
   return null;
 };
 
-// Resolve the shard to run the holdings expression on when the URL has none.
-// Uses the manual override if set, otherwise the first shard you own rooms on
-// (guaranteed to have a runtime). Mirrors market.deal.resolveShard.
+// The shard the holdings panel currently acts on. See the priority chain documented
+// on module.exports.resourcesShard above.
+module.exports.activeShard = function () {
+  return (
+    module.exports.resourcesShard ||
+    localStorage.getItem(module.exports.SHARD_KEY) ||
+    module.exports.autoShard ||
+    "shardX"
+  );
+};
+
+// Fetch the shards you own rooms on, ranked by room count, so the dropdown can list
+// them (with counts) and autoShard can default to the one you own the most rooms on.
+// Mirrors market.deal.resolveShard.
 module.exports.resolveShard = function () {
-  if (module.exports.resourcesShard) return; // manually pinned
-  try {
-    var userid = JSON.parse(localStorage.getItem("users.code.activeWorld"))[0]._id;
-    module.ajaxGet("https://screeps.com/api/user/rooms?id=" + userid, function (data) {
-      if (data && data.shards && Object.keys(data.shards).length) {
-        module.exports.resourcesShard = Object.keys(data.shards)[0];
-        console.log(
-          "[market.resources] shard resolved to " +
-            module.exports.resourcesShard +
-            " (your shards: " +
-            Object.keys(data.shards).join(", ") +
-            ")"
-        );
-      } else {
-        console.warn(
-          "[market.resources] could not resolve your shard from /api/user/rooms; fetch will fall back to shardX. " +
-            "Set module.exports.resourcesShard manually if that is wrong."
-        );
-      }
-    });
-  } catch (e) {
-    console.warn("[market.resources] resolveShard failed: " + e);
+  module.getOwnedShards(function (ranked) {
+    if (ranked && ranked.length) {
+      module.exports.shards = ranked;
+      module.exports.autoShard = ranked[0].name;
+      console.log(
+        "[market.resources] shards " +
+          ranked.map(function (s) { return s.name + "(" + s.count + ")"; }).join(", ") +
+          "; active " +
+          module.exports.activeShard()
+      );
+      module.exports.refreshShardDropdown();
+      module.exports.updateResourceLinks();
+    } else {
+      console.warn(
+        "[market.resources] could not resolve your shards from /api/user/rooms; fetch will fall back to " +
+          module.exports.activeShard() +
+          ". Set module.exports.resourcesShard manually if that is wrong."
+      );
+    }
+  });
+};
+
+// (Re)populate the in-panel Shard dropdown from module.exports.shards and select the
+// active shard. Built with the DOM API (not innerHTML) so shard names are never
+// interpreted as markup. No-op until the panel and the shard list both exist.
+module.exports.refreshShardDropdown = function () {
+  var dd = document.getElementById("sc-shard-dropdown");
+  if (!dd) return;
+
+  var active = module.exports.activeShard();
+  var shards = module.exports.shards;
+
+  // Not resolved yet — keep a single option for the current active shard.
+  var list = shards && shards.length ? shards : [{ name: active, count: null }];
+
+  dd.textContent = "";
+  list.forEach(function (s) {
+    var opt = document.createElement("option");
+    opt.value = s.name;
+    opt.textContent = s.count === null ? s.name : s.name + " (" + s.count + ")";
+    if (s.name === active) opt.selected = true;
+    dd.appendChild(opt);
+  });
+};
+
+// Point the resource tab links at the active shard's market pages.
+module.exports.updateResourceLinks = function () {
+  var shard = module.exports.activeShard();
+  $("#sc-my-resources a.market-resource").each(function () {
+    var res = this.id.replace("sc-", "");
+    this.href = "https://screeps.com/a/#!/market/all/" + shard + "/" + res;
+  });
+};
+
+// React to the active shard changing: re-point the links and refetch holdings
+// (unless the display dropdown is None, in which case there is nothing to show).
+module.exports.applyShardSelection = function () {
+  module.exports.updateResourceLinks();
+  if (localStorage.getItem("scMarketDropdown") !== "None") {
+    module.exports.fetchResources();
   }
 };
 
@@ -190,6 +270,7 @@ module.exports.buildPanel = function () {
               <option value="Storage">Storage</option>
               <option value="Terminal">Terminal</option>
             </select>
+            <select id="sc-shard-dropdown" title="Shard the holdings are read from" style="border-color: transparent;background: #444;color: #ccc;margin-left: 6px;"></select>
             ${svg}
             <div id="container4" style="display:flex;flex-wrap:wrap;gap:20px;width:100%;margin-top:10px;box-sizing:border-box;">
                 <div id="col1" style="flex:1;min-width:120px;overflow:hidden;">
@@ -258,7 +339,7 @@ module.exports.boostInfo = {
 // navigates to the app2 resource page (a plain link — no AngularJS scope poking);
 // updateResourceAmount() fills the #sc-val-<resource> span.
 module.exports.getTabElement = function (resource) {
-  var shard = module.getCurrentShard() || module.exports.resourcesShard || "shardX";
+  var shard = module.exports.activeShard();
 
   var desc = module.exports.boostInfo[resource];
   var descHtml = desc
@@ -334,10 +415,9 @@ module.exports.fetchResources = function () {
           <use xlink:href="#sc-svg-loading">
         </svg>`);
 
-  // Prefer the shard embedded in a mineral market URL (#!/market/all/<shard>/H);
-  // otherwise the resolved owned shard, else the shardX fallback. Never silently
-  // fall back to shard0 (which sendConsoleCommand would otherwise default to).
-  var shard = module.getCurrentShard() || module.exports.resourcesShard || "shardX";
+  // The shard chosen in the panel (dropdown selection, else most-owned default, else
+  // shardX). Never silently fall back to shard0 (which sendConsoleCommand defaults to).
+  var shard = module.exports.activeShard();
   console.log("[market.resources] fetch sent (shard=" + shard + ")");
 
   module.sendConsoleCommand(command, undefined, shard);
