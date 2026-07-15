@@ -10,6 +10,8 @@ const injectedGlobals = {
   angular: "readonly",
   chrome: "readonly",
   Mousetrap: "readonly",
+  // Page-world module runtime (module.js); each modules/*.js gets its instance from it.
+  ScreepsSC: "readonly",
   module: "writable",
   window: "readonly",
   document: "readonly"

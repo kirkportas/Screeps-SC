@@ -33,7 +33,19 @@ Also take a look at the [settings.json](settings.json) to see the module configu
 
 ## Create your own module
 1. Create a new javascript file under the `/modules` folder.
-2. Add these functions to your javascript file: `module.exports.init = function(){...}` and `module.exports.update = function(){...}`
+2. Wrap the file so it gets its own module instance (every module is loaded into the page as a
+   separate script, so this is what keeps two modules on the same page from overwriting each
+   other's `module`):
+   ```js
+   (function () {
+   var module = ScreepsSC.begin(document.currentScript);
+
+   module.exports.init = function () { ... };
+   module.exports.update = function () { ... };
+
+   ScreepsSC.end(module);
+   })();
+   ```
 3. Add your module to the `modules` array in the `settings.json` file.
    * `path` The path to your javascript file.
    * `runAt` Parameter when your module will run. It has two child parameters `onUpdate` and `onCompleted`
@@ -47,7 +59,7 @@ Also take a look at the [settings.json](settings.json) to see the module configu
 ## How it works
 1. On browser startup the extension will start listening on requests made to and from `*://screeps.com/*`.
 2. When a url for a request starts with a given value in `onUpdate` or `onCompleted` the background thread will execute the module `path` connected to the `onUpdate` or `onCompleted`.
-3. The `content.js` script will inject the `module.js` script together with the executed module. The executed module can access any function in the `module.js` script. Each module has their own `module.js` and it contains two module specific parameters `module.name` and `module.confg` (if you have set up a config in the `settings.json`).
+3. The background worker injects `content.js` into the page's isolated world. `content.js` then loads `module.js` (the page-world runtime) and the module file itself as `<script src>` tags pointing at the extension's own origin — screeps.com's Content Security Policy forbids inline scripts, but allows the extension origin, so the module source can never be inlined into the page. Each module gets its own instance of everything in `module.js` via `ScreepsSC.begin()`, plus the module-specific `module.name` and `module.config` (if you have set up a config in the `settings.json`). Calls that need extension privileges (`module.dispatchEvent({event:'xhttp', ...})`) are relayed by `content.js` to the background worker over a `CustomEvent` channel.
 4. If it's the first time the module is injected to the page session the `module.exports.init` function will be called in the module. All other `onUpdate` or `onCompleted` triggers will call the `module.exports.update` function.
 
 ## [FAQ](https://github.com/stybbe/Screeps-SC/wiki/FAQ)

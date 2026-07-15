@@ -1,3 +1,9 @@
+// Each modules/*.js is loaded into the page world as its own extension-origin script
+// (see module.js). The IIFE keeps `module` private to this file so modules sharing a page
+// do not overwrite each other; ScreepsSC.begin/end hand out the instance and start it.
+(function () {
+var module = ScreepsSC.begin(document.currentScript);
+
 module.exports.init = function () {
   try {
     var userid = JSON.parse(localStorage.getItem("users.code.activeWorld"))[0]._id;
@@ -686,4 +692,7 @@ module.exports._slicedToArray = (function () {
       throw new TypeError("Invalid attempt to destructure non-iterable instance");
     }
   };
+})();
+
+ScreepsSC.end(module);
 })();
