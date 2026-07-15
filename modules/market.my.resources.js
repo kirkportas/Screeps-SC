@@ -257,7 +257,7 @@ module.exports.updateResourceLinks = function () {
 // (unless the display dropdown is None, in which case there is nothing to show).
 module.exports.applyShardSelection = function () {
   module.exports.updateResourceLinks();
-  if (localStorage.getItem("scMarketDropdown") !== "None") {
+  if (module.exports.displayMode() !== "None") {
     module.exports.fetchResources();
   }
 };
@@ -371,9 +371,16 @@ module.exports.getTabElement = function (resource) {
   return $(tabElementText);
 };
 
+// The display mode (which stores to sum). Defaults to the dropdown's own markup
+// default when nothing is saved yet — otherwise a fresh profile (empty localStorage)
+// would show all zeros even though the dropdown reads "Storage & Terminal".
+module.exports.displayMode = function () {
+  return localStorage.getItem("scMarketDropdown") || "Storage & Terminal";
+};
+
 module.exports.updateResourceAmount = function () {
   if (window.SCMarket) {
-    var flag = localStorage.getItem("scMarketDropdown");
+    var flag = module.exports.displayMode();
     var sum = {};
 
     $('div[id^="sc-val-"]').html("0");
@@ -473,8 +480,7 @@ module.exports.listenToConsole = function () {
       }
     } else if (msg.data.indexOf("/console") > -1) {
       if (this.recievedConsole === undefined) {
-        var savedDrop = localStorage.getItem("scMarketDropdown");
-        if (savedDrop !== "None") {
+        if (module.exports.displayMode() !== "None") {
           module.exports.fetchResources();
         }
 
