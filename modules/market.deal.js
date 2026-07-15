@@ -22,15 +22,16 @@ module.exports.accountResources = ["cpuUnlock", "accessKey", "pixel"];
 // live runtime, or the console expression is never evaluated. activeShard() chooses
 // it with this priority:
 //   1. dealShard below — a hard code-level pin (normally "" / unset).
-//   2. the Shard dropdown selection, persisted in localStorage ("scMarketShard",
-//      shared with market.my.resources so both pages track one choice).
+//   2. savedShard — the Shard dropdown selection, persisted in chrome.storage.sync
+//      ("scMarketShard", shared with market.my.resources so both pages track one).
 //   3. autoShard — the shard you own the MOST rooms on (filled by resolveShard).
 //   4. "shardX" as a last resort.
 module.exports.dealShard = "";
 module.exports.autoShard = "";
+module.exports.savedShard = ""; // dropdown choice, loaded async from chrome.storage.sync
 
-// localStorage key + document-event name shared with market.my.resources so the two
-// shard dropdowns (both visible on e.g. #!/market/all/pixel) stay in sync.
+// chrome.storage.sync key + document-event name shared with market.my.resources so
+// the two shard dropdowns (both visible on e.g. #!/market/all/pixel) stay in sync.
 module.exports.SHARD_KEY = "scMarketShard";
 module.exports.SHARD_EVENT = "sc-market-shard-changed";
 
@@ -108,7 +109,7 @@ module.exports.update = function () {
 module.exports.activeShard = function () {
   return (
     module.exports.dealShard ||
-    localStorage.getItem(module.exports.SHARD_KEY) ||
+    module.exports.savedShard ||
     module.exports.autoShard ||
     "shardX"
   );
@@ -218,7 +219,8 @@ module.exports.bindHandlers = function () {
   // Shard dropdown: persist the choice (shared with market.my.resources) and notify
   // the other module so its dropdown mirrors this one.
   body.on("change.scdeal", "#sc-deal-shard-dropdown", function () {
-    localStorage.setItem(module.exports.SHARD_KEY, this.value);
+    module.exports.savedShard = this.value;
+    module.storageSet(module.exports.SHARD_KEY, this.value);
     console.log("[market.deal] deal shard set to " + this.value);
     document.dispatchEvent(
       new CustomEvent(module.exports.SHARD_EVENT, { detail: this.value })
@@ -227,10 +229,17 @@ module.exports.bindHandlers = function () {
 
   // Another market module changed the shared shard — mirror it in our dropdown.
   document.removeEventListener(module.exports.SHARD_EVENT, module.exports.onShardEvent);
-  module.exports.onShardEvent = function () {
+  module.exports.onShardEvent = function (e) {
+    if (e && e.detail) module.exports.savedShard = e.detail;
     module.exports.refreshShardDropdown();
   };
   document.addEventListener(module.exports.SHARD_EVENT, module.exports.onShardEvent);
+
+  // Load the persisted shard choice (async, from chrome.storage.sync via content.js).
+  module.storageGet(module.exports.SHARD_KEY, function (value) {
+    module.exports.savedShard = value || "";
+    module.exports.refreshShardDropdown();
+  });
 
   // Open the inline confirm form.
   body.on("click.scdeal", ".sc-deal-btn", function () {

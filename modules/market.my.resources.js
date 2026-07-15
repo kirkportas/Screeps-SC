@@ -24,16 +24,17 @@ var module = ScreepsSC.begin(document.currentScript);
 // runtime or the console expression is never evaluated. The active shard is chosen
 // by module.exports.activeShard() with this priority:
 //   1. resourcesShard below — a hard code-level pin (normally "" / unset).
-//   2. the in-panel Shard dropdown selection, persisted in localStorage
+//   2. savedShard — the Shard dropdown selection, persisted in chrome.storage.sync
 //      ("scMarketShard", shared with market.deal so both pages track one choice).
 //   3. autoShard — the shard you own the MOST rooms on (filled by resolveShard);
 //      that is where your stockpile lives, so it is the sensible default.
 //   4. "shardX" as a last resort.
 module.exports.resourcesShard = "";
 module.exports.autoShard = "";
+module.exports.savedShard = ""; // dropdown choice, loaded async from chrome.storage.sync
 
-// localStorage key + document-event name shared with market.deal so the two shard
-// dropdowns (both visible together on e.g. #!/market/all/pixel) stay in sync.
+// chrome.storage.sync key + document-event name shared with market.deal so the two
+// shard dropdowns (both visible together on e.g. #!/market/all/pixel) stay in sync.
 module.exports.SHARD_KEY = "scMarketShard";
 module.exports.SHARD_EVENT = "sc-market-shard-changed";
 
@@ -103,7 +104,8 @@ module.exports.init = function () {
   // Shard dropdown: persist the choice (shared with market.deal), re-point the tab
   // links, refetch the holdings for the new shard, and tell the other module.
   body.on("change.scres", "#sc-shard-dropdown", function () {
-    localStorage.setItem(module.exports.SHARD_KEY, this.value);
+    module.exports.savedShard = this.value;
+    module.storageSet(module.exports.SHARD_KEY, this.value);
     module.exports.applyShardSelection();
     document.dispatchEvent(
       new CustomEvent(module.exports.SHARD_EVENT, { detail: this.value })
@@ -112,11 +114,19 @@ module.exports.init = function () {
 
   // Another market module (market.deal) changed the shared shard — mirror it here.
   document.removeEventListener(module.exports.SHARD_EVENT, module.exports.onShardEvent);
-  module.exports.onShardEvent = function () {
+  module.exports.onShardEvent = function (e) {
+    if (e && e.detail) module.exports.savedShard = e.detail;
     module.exports.refreshShardDropdown();
     module.exports.applyShardSelection();
   };
   document.addEventListener(module.exports.SHARD_EVENT, module.exports.onShardEvent);
+
+  // Load the persisted shard choice (async, from chrome.storage.sync via content.js).
+  module.storageGet(module.exports.SHARD_KEY, function (value) {
+    module.exports.savedShard = value || "";
+    module.exports.refreshShardDropdown();
+    module.exports.updateResourceLinks();
+  });
 
   ensurePanel();
 
@@ -179,7 +189,7 @@ module.exports.injectionAnchor = function () {
 module.exports.activeShard = function () {
   return (
     module.exports.resourcesShard ||
-    localStorage.getItem(module.exports.SHARD_KEY) ||
+    module.exports.savedShard ||
     module.exports.autoShard ||
     "shardX"
   );

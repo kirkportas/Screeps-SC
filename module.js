@@ -283,6 +283,19 @@
             return "";
         };
 
+        // Read/write the extension's own chrome.storage.sync (where module config
+        // lives), relayed through content.js since the page world has no chrome.*.
+        // storageGet is async: cb(value) once content.js answers.
+        module.storageGet = function (key, cb) {
+            module.dispatchEvent({ event: "storageGet", key: key }, function (data) {
+                cb(data.value);
+            });
+        };
+
+        module.storageSet = function (key, value) {
+            module.dispatchEvent({ event: "storageSet", key: key, value: value });
+        };
+
         // Fetches the shards you own rooms on, ranked by owned-room count descending,
         // as [{name, count}]. The market modules use this to default to (and offer in a
         // dropdown) the shard your stockpile actually lives on. cb(null) on failure.

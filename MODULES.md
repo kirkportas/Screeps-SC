@@ -117,7 +117,7 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   `module.exports.injectionAnchor`). It is **scoped to the All-orders view**
   (`#!/market/all…`) and is torn down (panel removed + socket closed) on My orders /
   History. The holdings console expression runs on the shard chosen by the Shard
-  dropdown, whose selection persists in `localStorage` (`scMarketShard`, shared with
+  dropdown, whose selection persists in `chrome.storage.sync` (`scMarketShard`, shared with
   market.deal) and defaults to the shard you own the **most rooms** on; a hard
   `module.exports.resourcesShard` pin still wins over both, and `shardX` is the last
   resort — never a silent shard0 fallback. Logs `[market.resources]` breadcrumbs to
@@ -152,7 +152,7 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
   element). Injection self-heals via a rAF-coalesced `MutationObserver`. If the
   feedback socket can't open, the deal is still sent (just without the live flash).
   A **Deal shard** dropdown above the order table picks which shard the deal runs on;
-  the choice persists in `localStorage` (`scMarketShard`, shared with market.resources
+  the choice persists in `chrome.storage.sync` (`scMarketShard`, shared with market.resources
   — the two dropdowns sync live when both are on screen) and defaults to the shard you
   own the most rooms on. Logs `[market.deal]` breadcrumbs to the page console.
 - **Verify:** open Market → `cpuUnlock` (or `accessKey` / `pixel`); each order row

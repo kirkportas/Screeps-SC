@@ -111,6 +111,17 @@
             case "dispose":
                 toPage(data.module, { event: "dispose" });
                 break;
+            case "storageGet":
+                // Page world can't touch chrome.storage; read it here and echo the
+                // value back on the module's channel (same _cb round-trip as xhttp).
+                chrome.storage.sync.get(data.key, function (res) {
+                    data.value = res ? res[data.key] : undefined;
+                    toPage(data.module, data);
+                });
+                break;
+            case "storageSet":
+                chrome.storage.sync.set({ [data.key]: data.value });
+                break;
             default:
                 console.log(data);
         }
