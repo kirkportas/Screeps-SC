@@ -219,3 +219,9 @@ All LOAN-based modules require the `leagueofautomatednations.com` host permissio
 - Mousetrap vendored into `vendor/mousetrap.min.js` (was loaded from a third-party
   CDN at runtime); page-world modules can load vendored files via
   `module.extensionUrl` + `web_accessible_resources`.
+- Chrome: modules are no longer injected as inline `<script>` source. `content.js`
+  now loads `module.js` and each module file into the page as extension-origin
+  `<script src>` tags (`web_accessible_resources`), because screeps.com's CSP blocks
+  inline scripts — Chrome enforces that against content-script-inserted scripts,
+  Firefox does not, so every module was dead in Chrome. Each module file is wrapped
+  in an IIFE that gets a private instance from `ScreepsSC.begin(document.currentScript)`.

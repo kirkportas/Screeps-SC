@@ -1,3 +1,9 @@
+// Each modules/*.js is loaded into the page world as its own extension-origin script
+// (see module.js). The IIFE keeps `module` private to this file so modules sharing a page
+// do not overwrite each other; ScreepsSC.begin/end hand out the instance and start it.
+(function () {
+var module = ScreepsSC.begin(document.currentScript);
+
 /**
  * Adds new console controls
  * - custom buttons, with custom commands, using current room, selected object id and x,y mouse coords
@@ -337,3 +343,6 @@ module.exports.closeModal = function () {
   $("#sc-modal-icon").remove();
   $("#sc-modal-background").remove();
 };
+
+ScreepsSC.end(module);
+})();

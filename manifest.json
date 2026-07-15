@@ -15,7 +15,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["vendor/*"],
+      "resources": ["module.js", "modules/*", "vendor/*"],
       "matches": ["*://screeps.com/*"]
     }
   ],
